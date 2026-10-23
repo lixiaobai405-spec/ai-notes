@@ -26,7 +26,7 @@ def _missing_object(error):
 class OSSStorage:
     def __init__(self, cfg, *, client=None):
         self.bucket, self.prefix = cfg.oss_bucket, cfg.oss_prefix
-        self.max_bytes = cfg.upload_max_bytes
+        self.max_bytes = max(cfg.upload_max_bytes, cfg.pdf_max_bytes)
         if client is not None:
             self.client = client
             return

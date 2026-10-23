@@ -3,14 +3,15 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from app.shared.db import utcnow
 from app.shared.models import User, Invite, AuthSession, ResetToken
-from app.shared.security import token, digest, hasher, verify_password, DUMMY_HASH
+from app.shared.security import token, digest, session_csrf, hasher, verify_password, DUMMY_HASH
 from app.shared.config import settings
 from app.shared.errors import AppError
 from app.shared.permissions import audit
 
 
 def create_session(db, user):
-    raw, csrf = token(), token()
+    raw = token()
+    csrf = session_csrf(raw)
     db.add(AuthSession(user_id=user.id, token_hash=digest(raw), csrf_hash=digest(csrf), expires_at=utcnow() + timedelta(days=settings().session_days)))
     return raw, csrf
 

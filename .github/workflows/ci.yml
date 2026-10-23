@@ -38,8 +38,15 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: pip install -r requirements-dev.lock
         working-directory: backend
-      - run: alembic upgrade head && alembic check && pytest -q
+      - run: |
+          alembic upgrade head
+          alembic downgrade c2e41a9f3b67
+          alembic upgrade head
+          alembic check
+          pytest -q
         working-directory: backend
+        env:
+          SITE_BACKUP_TEST_CONTAINER: ${{ job.services.postgres.id }}
       - run: PYTHONPATH=. python scripts/export_openapi.py
         working-directory: backend
       - run: npm ci && npm run check:types && npm run build

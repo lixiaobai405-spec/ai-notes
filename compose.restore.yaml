@@ -1,0 +1,20 @@
+# Isolated local archive recovery drill. Never points at the development database.
+name: ai-notes-restore
+services:
+  db:
+    image: postgres:16.8-alpine
+    environment:
+      POSTGRES_USER: notes
+      POSTGRES_PASSWORD: restore-local-only
+      POSTGRES_DB: notes_restore
+    ports:
+      - "127.0.0.1:55434:5432"
+    volumes:
+      - restoredata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notes -d notes_restore"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+volumes:
+  restoredata:

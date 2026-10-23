@@ -49,8 +49,16 @@ idna==3.20
     #   requests
 mako==1.4.3
     # via alembic
+markdown-it-py==4.2.0
+    # via
+    #   ai-notes-backend
+    #   mdit-py-plugins
 markupsafe==3.0.4
     # via mako
+mdit-py-plugins==0.6.1
+    # via ai-notes-backend
+mdurl==0.1.2
+    # via markdown-it-py
 opentelemetry-api==1.45.1
     # via fastapi
 pillow==12.3.0
@@ -70,6 +78,8 @@ pydantic==2.14.1
 pydantic-core==2.50.1
     # via pydantic
 pydantic-settings==2.15.0
+    # via ai-notes-backend
+pypdfium2==5.14.0
     # via ai-notes-backend
 python-dotenv==1.2.4
     # via

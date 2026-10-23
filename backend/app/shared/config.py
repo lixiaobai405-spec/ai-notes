@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     upload_expiry_seconds: int = 600
     file_ticket_seconds: int = 300
     upload_read_timeout_seconds: int = 60
+    pdf_max_bytes: int = 50 * 1024 * 1024
+    pdf_max_pages: int = 200
+    pdf_page_timeout_seconds: int = 60
+    export_max_bytes: int = 512 * 1024 * 1024
+    export_max_rows: int = 50_000
+    export_max_metadata_bytes: int = 32 * 1024 * 1024
+    export_max_seconds: int = 120
     oss_region: str = "cn-hangzhou"
     oss_bucket: str = ""
     oss_endpoint: str = ""
@@ -54,10 +61,19 @@ class Settings(BaseSettings):
             raise ValueError("Limits must be positive")
         if self.db_pool_size < 1 or self.db_max_overflow < 0:
             raise ValueError("Invalid database pool limits")
+        if self.pdf_max_pages > 500:
+            raise ValueError("PDF page limit must not exceed the reader's 500-page ordering limit")
         if min(self.upload_max_bytes, self.upload_max_pixels, self.upload_batch_limit,
                self.storage_quota_bytes, self.upload_expiry_seconds, self.file_ticket_seconds,
-               self.upload_read_timeout_seconds) < 1:
+               self.upload_read_timeout_seconds, self.pdf_max_bytes, self.pdf_max_pages,
+               self.pdf_page_timeout_seconds) < 1:
             raise ValueError("File limits must be positive")
+        if (min(self.export_max_bytes, self.export_max_rows,
+                self.export_max_metadata_bytes, self.export_max_seconds) < 1
+                or self.export_max_bytes > 512 * 1024 * 1024
+                or self.export_max_rows > 50_000
+                or self.export_max_metadata_bytes > 32 * 1024 * 1024):
+            raise ValueError("Export limits must be positive and within the v1 format limits")
         if self.app_env == "production" and self.storage_backend == "local":
             raise ValueError("Production requires configured OSS storage")
         if self.storage_backend == "oss":

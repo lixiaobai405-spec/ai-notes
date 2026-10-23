@@ -59,3 +59,23 @@ class ReorderIn(CompleteIn):
 class TicketOut(BaseModel):
     url: str
     expires_at: datetime
+
+
+class PdfImportCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: str = Field(min_length=1, max_length=200)
+    size: int = Field(strict=True, gt=0)
+    request_key: str = Field(min_length=8, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$")
+    notebook_id: UUID | None = None
+    tag_ids: list[UUID] = Field(default_factory=list, max_length=100)
+
+
+class PdfImportOut(BaseModel):
+    id: UUID
+    note_id: UUID
+    filename: str
+    status: Literal["uploading", "expired", "queued", "processing", "ready", "rejected", "failed"]
+    page_count: int | None
+    completed_pages: int
+    error_code: str | None
+    upload: UploadOut

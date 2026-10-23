@@ -1,5 +1,6 @@
 from typing import Literal
 from uuid import UUID
+from urllib.parse import quote
 import asyncio
 
 from fastapi import APIRouter, Query, Request, Response
@@ -31,15 +32,17 @@ def upload_status(upload_id: UUID, db: DB, user: CurrentUser):
 async def upload_content(upload_id: UUID, request: Request, db: DB, user: CurrentUser):
     session = service.owned_upload(db, user, upload_id)
     expected = db.get(service.File, session.file_id).expected_bytes
+    is_pdf = db.get(service.File, session.file_id).mime == "application/pdf"
+    limit = settings().pdf_max_bytes if is_pdf else settings().upload_max_bytes
     # Do not hold the user's write lock while waiting for a slow browser upload.
     db.rollback()
     chunks, size = [], 0
     try:
-        async with asyncio.timeout(settings().upload_read_timeout_seconds):
+        async with asyncio.timeout(max(300, settings().upload_read_timeout_seconds) if is_pdf else settings().upload_read_timeout_seconds):
             async for chunk in request.stream():
                 size += len(chunk)
-                if size > settings().upload_max_bytes:
-                    raise AppError(413, "file_too_large", "单张图片超过上传上限")
+                if size > limit:
+                    raise AppError(413, "file_too_large", "文件超过上传上限")
                 if size > expected:
                     raise AppError(422, "upload_mismatch", "文件大小与上传声明不一致")
                 chunks.append(chunk)
@@ -97,5 +100,10 @@ def retry_file(file_id: UUID, db: DB, user: CurrentUser):
 def content(file_id: UUID, db: DB, user: CurrentUser,
             ticket: str = Query(min_length=20, max_length=128), kind: VariantKind = "reading"):
     data, mime = service.read_ticket(db, user, file_id, ticket, kind)
+    disposition = "inline"
+    if mime == "application/pdf":
+        filename = quote(db.get(service.File, file_id).filename, safe="")
+        disposition = "attachment; filename=original.pdf; filename*=UTF-8''" + filename
     return Response(content=data, media_type=mime, headers={
-        "Content-Disposition": "inline", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+        "Content-Disposition": disposition,
+        "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})

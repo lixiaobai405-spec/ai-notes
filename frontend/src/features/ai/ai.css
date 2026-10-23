@@ -1,2 +1,83 @@
 .ai-credential-actions{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin-top:16px}
 .ai-model-caption{text-align:left;color:#586c5d;font-size:13px;padding-bottom:10px}
+.chat-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:22px;align-items:start}
+.chat-history{padding:20px;max-height:75vh;overflow:auto}
+.chat-history h3{margin-top:22px}
+.chat-history-item{display:block;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:10px;padding:12px;margin:4px 0;color:inherit}
+.chat-history-item strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-history-item small{display:block;color:#68766b;margin-top:5px}
+.chat-history-item.selected{background:#edf3eb;border-color:#ccd9c9}
+.chat-main{min-width:0}
+.chat-main h3{overflow-wrap:anywhere}
+.chat-messages{display:flex;flex-direction:column;gap:26px}
+.chat-question{background:#edf3eb;border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.chat-question p{white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0 0}
+.chat-answer{padding:0 4px;line-height:1.8}
+.chat-answer small,.chat-question small{color:#68766b}
+.chat-answer-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0}
+.chat-formatted-answer{white-space:normal;min-width:0;max-width:100%;overflow-wrap:anywhere}
+.chat-formatted-answer>:first-child{margin-top:0}
+.chat-formatted-answer>:last-child{margin-bottom:0}
+.chat-formatted-answer p{margin:0 0 12px}
+.chat-formatted-answer h1,.chat-formatted-answer h2{font-size:23px;line-height:1.45;margin:24px 0 12px}
+.chat-formatted-answer h3{font-size:19px;margin:20px 0 10px}
+.chat-formatted-answer h4,.chat-formatted-answer h5,.chat-formatted-answer h6{font-size:16px;margin:18px 0 10px}
+.chat-formatted-answer ul,.chat-formatted-answer ol{padding-left:26px;margin:12px 0}
+.chat-formatted-answer li>p{margin:5px 0}
+.chat-formatted-answer blockquote{border-left:3px solid #8eaf97;margin:16px 0;padding:4px 0 4px 16px;color:#586c5d}
+.chat-formatted-answer a{color:#285f4b;text-decoration:underline;text-underline-offset:3px}
+.chat-formatted-answer code{font-family:Consolas,monospace;font-size:.9em;background:#f1f5ef;border-radius:4px;padding:2px 5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.answer-code{min-width:0;max-width:100%;margin:14px 0;background:#f2f5f1;border:1px solid #e0e7dc;border-radius:8px;overflow:hidden}
+.answer-code>small{display:block;padding:6px 14px;border-bottom:1px solid #e0e7dc;font-family:Consolas,monospace;overflow-wrap:anywhere}
+.answer-code pre{white-space:pre;overflow-wrap:normal;max-width:100%;overflow:auto;margin:0;padding:14px;line-height:1.7;max-height:480px}
+.answer-code pre code{white-space:pre;overflow-wrap:normal;background:none;padding:0;border-radius:0}
+.chat-formatted-answer hr{border:0;border-top:1px solid #dce5d8;margin:22px 0}
+.answer-math{box-sizing:border-box;max-width:100%;overflow-x:auto;overflow-y:hidden;padding:3px 0}
+.answer-math-inline{display:inline-block;vertical-align:middle}
+.answer-math-block{display:block;margin:14px 0}
+.answer-math-block .katex-display{margin:0}
+.answer-math-error{max-width:100%;overflow-wrap:anywhere;white-space:pre-wrap;color:#925427;background:#fff7e8;border-radius:5px;padding:4px 6px}
+.answer-math-error-label{font-size:12px}
+.answer-math-error code{background:none;font:inherit;padding:0}
+.rich-editor,.note-prose{min-width:0;max-width:100%}
+.note-prose pre{white-space:pre;overflow-wrap:normal;max-width:100%;overflow-x:auto}
+.note-prose .tiptap-mathematics-render[data-type=inline-math]{display:inline-block;vertical-align:middle;box-sizing:border-box;max-width:100%;overflow-x:auto;padding:3px 0}
+.note-prose .tiptap-mathematics-render[data-type=block-math]{box-sizing:border-box;max-width:100%;overflow-x:auto;margin:14px 0;padding:3px 0}
+.note-prose .block-math-error,.note-prose .inline-math-error{color:#925427;background:#fff7e8;white-space:pre-wrap;overflow-wrap:anywhere}
+.note-prose .block-math-error::before,.note-prose .inline-math-error::before{content:'公式未能排版，原 LaTeX：';font-size:12px}
+.chat-warning{color:#925427;background:#fff7e8;padding:10px 14px;border-radius:8px}
+.chat-composer{margin-top:28px;border-top:1px solid #e3e8de;padding-top:22px}
+.chat-composer textarea{width:100%;resize:vertical;min-height:100px}
+.chat-composer label{display:flex;flex-direction:column;gap:8px;font-size:13px;color:#586c5d}
+.chat-composer textarea,.chat-composer select{font:inherit;color:#243e36;background:#fff;border:1px solid #cbd6ca;border-radius:9px;padding:12px;line-height:1.6}
+.chat-composer textarea:focus,.chat-composer select:focus{outline:2px solid #8aaf9b;outline-offset:2px}
+.chat-controls{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-top:12px}
+.chat-controls label{max-width:240px;flex:1}
+.chat-hint{font-size:12px;line-height:1.7;margin-bottom:0}
+.pdf-picker{border:1px solid #d7e2d5;border-radius:10px;padding:16px;margin:0 0 20px;min-width:0}
+.pdf-picker legend{color:#586c5d;font-size:13px;padding:0 6px}
+.pdf-picker input:not([type=radio]){font:inherit;border:1px solid #cbd6ca;border-radius:8px;padding:10px;width:100%;color:#243e36}
+.pdf-mode{display:flex;gap:22px;flex-wrap:wrap;margin:14px 0}
+.pdf-mode label{flex-direction:row;align-items:center}
+.pdf-mode input{width:auto;margin:0}
+.pdf-preview{background:#f2f6ef;border-radius:8px;padding:12px;margin-top:14px;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.pdf-preview p{margin:6px 0}
+.pdf-run-scope{background:#f5f7f2;border:1px solid #e0e7db;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13px;overflow-wrap:anywhere}
+.pdf-run-scope summary{cursor:pointer}
+.pdf-page-links{display:flex;flex-wrap:wrap;gap:8px;max-height:180px;overflow:auto}
+.pdf-run-progress{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.pdf-run-progress progress{width:100%;height:8px;accent-color:#2f6854}
+.citation-link{display:inline;border:0;border-bottom:1px solid #729581;background:#edf3eb;color:#285641;font:inherit;border-radius:4px;padding:0 5px;cursor:pointer;margin:0 2px}
+.pdf-source-reader{border:1px solid #cbd6ca;border-radius:10px;padding:14px;margin-top:16px;scroll-margin-top:20px}
+.pdf-source-reader .image-reader-viewport{height:65vh;min-height:280px}
+.save-answer{margin-top:16px}
+.save-answer-form,.saved-answer-source{border:1px solid #d7e2d5;border-radius:10px;background:#f5f7f2;padding:16px;margin:16px 0;overflow-wrap:anywhere;min-width:0}
+.save-answer-form h4,.saved-answer-source h4{margin:0 0 10px}
+.save-answer-form label{display:flex;flex-direction:column;gap:8px;margin:12px 0;font-size:13px;color:#586c5d}
+.save-answer-form input,.save-answer-form select{font:inherit;color:#243e36;background:#fff;border:1px solid #cbd6ca;border-radius:8px;padding:10px;width:100%;min-width:0}
+.save-answer-form p,.saved-answer-source p{font-size:13px;line-height:1.7;margin:10px 0}
+.saved-answer-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;font-size:13px;overflow-wrap:anywhere}
+.saved-answer-source details{margin-top:14px}
+.saved-answer-source summary{cursor:pointer;font-size:13px;margin-bottom:10px}
+.material-choice{margin-bottom:16px;max-width:360px}.image-picker>label+label{margin-top:14px}.image-region-preview{margin-top:12px}.image-selection-stage{position:relative;height:clamp(260px,50vh,480px);max-width:100%;background:#e9efe8;border:1px solid #d7e2d5;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center}.image-selection-stage.selecting{touch-action:none;cursor:crosshair}.image-selection-stage .private-image img{max-width:100%;max-height:100%;object-fit:contain;display:block;user-select:none}.image-region-preview p{font-size:12px;line-height:1.7}.image-region-fields{margin:12px 0;font-size:12px}.image-region-fields summary{cursor:pointer}.image-region-fields>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}.image-region-fields input{min-width:0}.image-region-fields+button{margin-top:10px}
+@media(max-width:850px){.chat-layout{grid-template-columns:minmax(0,1fr)}.chat-history{max-height:220px}.chat-main{padding:20px}.chat-controls{flex-wrap:wrap}}

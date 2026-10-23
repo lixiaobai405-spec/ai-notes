@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, Response, Depends, Query
 from sqlalchemy import select, update
 from app.shared.dependencies import DB, CurrentUser, Admin, preauth_csrf, tab_preauth_csrf, auth_rate_limit
 from app.shared.models import User, AuthSession, Invite, ResetToken, Audit
-from app.shared.security import token, digest
+from app.shared.security import token, digest, session_csrf
 from app.shared.db import utcnow
 from app.shared.config import settings
 from app.shared.permissions import audit
@@ -24,9 +24,34 @@ def set_auth_cookies(response, raw, csrf):
 
 
 @router.get("/auth/csrf", response_model=s.CsrfOut)
-def csrf(request: Request, response: Response):
-    value = request.cookies.get("notes_csrf") or token()
-    response.set_cookie("notes_csrf", value, httponly=False, secure=settings().cookie_secure, samesite="lax", path="/")
+def csrf(request: Request, response: Response, db: DB):
+    cfg = settings()
+    origin = request.headers.get("origin")
+    if (origin is not None and origin != cfg.app_origin
+            or request.headers.get("sec-fetch-site") == "cross-site"):
+        raise AppError(403, "origin_invalid", "请求来源不受信任")
+    raw = request.cookies.get("notes_session", "")
+    session = None
+    if raw:
+        # Only the session row is locked. Account revocation locks User first;
+        # never acquire a User lock here and reverse that lock order.
+        session = db.scalar(select(AuthSession).join(User).where(
+            AuthSession.token_hash == digest(raw), AuthSession.revoked_at.is_(None),
+            AuthSession.expires_at > utcnow(), User.status == "active",
+        ).with_for_update(of=AuthSession))
+    max_age = None
+    if session and session.expires_at > utcnow():
+        value = session_csrf(raw)
+        # Legacy random CSRF values converge to this same value even when two
+        # tabs bootstrap concurrently with a missing or stale cookie.
+        session.csrf_hash = digest(value)
+        max_age = max(0, int((session.expires_at - utcnow()).total_seconds()))
+        db.commit()
+    else:
+        db.rollback()
+        value = request.cookies.get("notes_csrf") or token()
+    response.set_cookie("notes_csrf", value, httponly=False, secure=cfg.cookie_secure,
+                        samesite="lax", path="/", max_age=max_age)
     response.headers["Cache-Control"] = "no-store"
     return {"csrf_token": value}
 

@@ -17,8 +17,11 @@ def stop(*_):
 
 def execute(job):
     log.info("job_started job_id=%s", job["id"])
-    if job["kind"] == "image.process":
-        from app.modules.files.service import process_job
+    if job["kind"] in {"image.process", "pdf.import"}:
+        if job["kind"] == "pdf.import":
+            from app.modules.files.pdf_service import process_job
+        else:
+            from app.modules.files.service import process_job
 
         stop_heartbeat = threading.Event()
 
@@ -50,6 +53,8 @@ def execute(job):
 
 
 def tick():
+    from app.modules.ai.chat_service import tick as ai_tick
+
     job = service.claim()
     if job:
         try:
@@ -59,7 +64,8 @@ def tick():
             log.warning("handler_failed job_id=%s", job["id"])
             service.fail(job["id"], job["token"])
     service.deliver_outbox()
-    return bool(job)
+    ai_found = ai_tick()
+    return bool(job) or ai_found
 
 
 def main():

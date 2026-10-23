@@ -73,7 +73,7 @@ def test_sdk_missing_key_and_errors_are_redacted():
 @pytest.mark.parametrize("chunks,declared", [([b"12345"], 5), ([b"12", b"345"], None), ([b"12"], 3)])
 def test_bounded_read_closes_stream_on_failure(chunks, declared):
     client = Mock()
-    store = OSSStorage(configured(upload_max_bytes=4), client=client)
+    store = OSSStorage(configured(upload_max_bytes=4, pdf_max_bytes=4), client=client)
     body = Body(chunks)
     client.get_object.return_value = SimpleNamespace(content_length=declared, body=body)
     with pytest.raises(StorageUnavailable):

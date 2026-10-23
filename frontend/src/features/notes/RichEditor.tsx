@@ -2,15 +2,16 @@ import { useState } from 'react'
 import { EditorContent,useEditor } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
-import { Mathematics } from '@tiptap/extension-mathematics'
+import { BlockMath, InlineMath } from '@tiptap/extension-mathematics'
 import { Markdown } from '@tiptap/markdown'
 import 'katex/dist/katex.min.css'
 import { NoteError } from './NoteError'
 const empty={type:'doc',content:[{type:'paragraph'}]}
+const katexOptions={throwOnError:true,trust:false,strict:'ignore' as const,maxExpand:1000,maxSize:10}
 function plainText(json:JSONContent):string {if(json.type==='inlineMath'||json.type==='blockMath')return String(json.attrs?.latex||'');if(json.type==='hardBreak')return '\n';if(json.text)return json.text;return (json.content||[]).map(plainText).join(['doc','bulletList','orderedList','listItem','blockquote'].includes(json.type||'')?'\n':'')}
 export function RichEditor({initial,onChange,onBeforeImport,readOnly=false}:{initial:Record<string,unknown>;onChange:(body:Record<string,unknown>,plain:string)=>void;onBeforeImport:()=>void;readOnly?:boolean}) {
   const [latex,setLatex]=useState(''),[error,setError]=useState<unknown>(null),[message,setMessage]=useState('')
-  const editor=useEditor({extensions:[StarterKit.configure({link:{openOnClick:false,autolink:false}}),Mathematics.configure({katexOptions:{throwOnError:false,trust:false}}),Markdown],content:Object.keys(initial).length?initial:empty,editable:!readOnly,editorProps:{attributes:{'aria-label':'笔记正文',class:'note-prose'}},onUpdate:({editor})=>{const json=editor.getJSON();onChange(json,plainText(json))}})
+  const editor=useEditor({extensions:[StarterKit.configure({link:{openOnClick:false,autolink:false}}),BlockMath.configure({katexOptions:{...katexOptions,displayMode:true}}),InlineMath.configure({katexOptions:{...katexOptions,displayMode:false}}),Markdown],content:Object.keys(initial).length?initial:empty,editable:!readOnly,editorProps:{attributes:{'aria-label':'笔记正文',class:'note-prose'}},onUpdate:({editor})=>{const json=editor.getJSON();onChange(json,plainText(json))}})
   async function importMarkdown(file?:File){
     if(!file||!editor)return
     try{if(file.size>1_048_576)throw new Error('导入文件不能超过 1 MiB');const markdown=await file.text();if(!window.confirm('Markdown 转换可能丢失公式或特殊格式。将替换当前正文；导入前的完整 JSON 会保留在本机备份中。继续导入？'))return;onBeforeImport();editor.commands.setContent(markdown,{contentType:'markdown'});setMessage('已导入。原正文 JSON 已保存到本机备份。');setError(null)}catch(e){setError(e)}
