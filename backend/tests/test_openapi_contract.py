@@ -19,3 +19,12 @@ class OpenAPIContractTests(unittest.TestCase):
             if "422" in operation.get("responses", {})
         }
         self.assertEqual(descriptions, {"Unprocessable Content"})
+
+    def test_export_size_response_description_is_stable_across_python_versions(self):
+        descriptions = {
+            operation["responses"]["413"]["description"]
+            for path in app.openapi()["paths"].values()
+            for operation in path.values()
+            if "413" in operation.get("responses", {})
+        }
+        self.assertEqual(descriptions, {"Content Too Large"})

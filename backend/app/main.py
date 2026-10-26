@@ -101,4 +101,6 @@ app.include_router(notes_router, prefix="/api/v1", responses=errors)
 app.include_router(ai_router, prefix="/api/v1", responses={**errors, 503: {"model": ErrorOut}})
 app.include_router(chat_router, prefix="/api/v1", responses={**errors, 503: {"model": ErrorOut}})
 app.include_router(saved_router, prefix="/api/v1", responses=errors)
-app.include_router(exports_router, prefix="/api/v1", responses={**errors, 413: {"model": ErrorOut}, 503: {"model": ErrorOut}})
+app.include_router(exports_router, prefix="/api/v1", responses={
+    **errors, 413: {"model": ErrorOut, "description": "Content Too Large"}, 503: {"model": ErrorOut},
+})
