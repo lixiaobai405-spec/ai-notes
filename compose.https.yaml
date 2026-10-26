@@ -1,0 +1,18 @@
+# Opt-in overlay for compose.server.yaml; retain the existing project and database volume.
+services:
+  db:
+    image: ${POSTGRES_IMAGE:?pin the existing verified database image}
+  web:
+    ports: !override
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_IP: ${SITE_IP:?set the public IPv4 address}
+      ACME_DIRECTORY: ${ACME_DIRECTORY:?set the ACME directory}
+    volumes:
+      - ./deploy/Caddyfile.https:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  caddy_data:
+  caddy_config:

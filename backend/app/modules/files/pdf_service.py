@@ -217,8 +217,10 @@ def process_job(claimed):
             try:
                 for kind, content in objects:
                     object_key = f"{prefix}-{kind}.jpg"
-                    files.storage().put(object_key, content)
+                    # A successful PUT can lose its response. Register the
+                    # attempted key first so finally can reclaim that object.
                     written.append((kind, object_key, len(content)))
+                    files.storage().put(object_key, content)
                 with SessionLocal.begin() as db:
                     locked = _locked(db, claimed)
                     if not locked:

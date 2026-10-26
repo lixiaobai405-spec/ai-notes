@@ -6,6 +6,7 @@ import { api, authenticate, logoutTab, date, ApiError, type User, type Invite, t
 import { clearTabNavigation,rememberSection,rememberNote,wasNotesOpen,wasChatOpen } from './features/notes/drafts'
 import { authSession,clearSession,startSessionSync } from './session.ts'
 import { createUuid } from './uuid'
+import type { AskTextSelection } from './features/notes/text-selection'
 const NotesWorkspace=lazy(()=>import('./features/notes/NotesWorkspace'))
 const AiChat=lazy(()=>import('./features/ai/AiChat'))
 const AiSettings=lazy(()=>import('./features/ai/AiSettings'))
@@ -99,6 +100,7 @@ export default function App() {
   const session=useSyncExternalStore(authSession.subscribe,authSession.snapshot)
   const [section,setSection]=useState<Section>('home')
   const [noteToOpen,setNoteToOpen]=useState('')
+  const [textSelection,setTextSelection]=useState<AskTextSelection|null>(null)
   const [storageNotice,setStorageNotice]=useState('')
   useEffect(()=>{
     let previous=authSession.ticket()
@@ -108,14 +110,14 @@ export default function App() {
       // Abort/remove old queries before any delayed response can repopulate a private screen.
       void client.cancelQueries();client.clear()
       if(old.owner&&(next.phase==='closing'||next.phase==='anonymous'||next.owner!==old.owner)&&!clearTabNavigation(old.owner))setStorageNotice('界面已锁定，但浏览器未允许清理当前标签页记录。')
-      setNoteToOpen('');setSection('home')
+      setNoteToOpen('');setTextSelection(null);setSection('home')
     })
     const stop=startSessionSync(()=>{void client.invalidateQueries({queryKey:['me']})})
     return()=>{stop();unsubscribe()}
   },[client])
   const me=useQuery({queryKey:['me',session.generation],queryFn:async()=>{const ticket=authSession.ticket();const user=await api<User>('/auth/me');authSession.verify(user.id,ticket);return user},enabled:session.phase==='checking'||session.phase==='active'})
   useEffect(()=>{if(me.data?.id){if(wasNotesOpen(me.data.id))setSection('notes');else if(wasChatOpen(me.data.id))setSection('chat')}},[me.data?.id])
-  function go(next:Section){if(me.data)rememberSection(me.data.id,next);setNoteToOpen('');setSection(next)}
+  function go(next:Section){if(me.data)rememberSection(me.data.id,next);setNoteToOpen('');setTextSelection(null);setSection(next)}
   const logout=useMutation({mutationFn:async()=>{const closing=authSession.beginLogout(authSession.ticket());try{await logoutTab()}finally{if(authSession.current(closing))clearSession()}}})
   if(session.phase==='closing')return <div className="loading">正在退出登录，已暂停本机编辑…</div>
   if(session.phase==='anonymous')return <AuthScreen notice={storageNotice} error={logout.error}/>
@@ -128,5 +130,5 @@ export default function App() {
   const user=me.data
   const nav=[{id:'home' as const,label:'空间概览',icon:LayoutDashboard},{id:'notes' as const,label:'我的笔记',icon:BookOpen},{id:'chat' as const,label:'AI 对话',icon:MessageSquare},{id:'ai' as const,label:'模型设置',icon:KeyRound},{id:'jobs' as const,label:'后台任务',icon:Activity},...(user.role==='admin'?[{id:'invites' as const,label:'邀请码',icon:Ticket},{id:'users' as const,label:'成员管理',icon:Users},{id:'audit' as const,label:'操作记录',icon:ShieldCheck}]:[])]
   const titles:Record<Section,string>={home:'空间概览',notes:'我的笔记',chat:'AI 对话',ai:'模型设置',invites:'邀请码管理',users:'成员管理',jobs:'后台任务',audit:'操作记录'}
-  return <div className="app-shell"><aside className="sidebar"><div className="brand"><BookOpen/> 知页 <span>AI NOTES</span></div><div className="workspace-chip"><span className="workspace-avatar">知</span><div><strong>我们的学习空间</strong><small>个人与朋友 · 邀请制</small></div></div><p className="nav-label">工作空间</p><nav>{nav.map(n=><button key={n.id} className={section===n.id?'nav-item selected':'nav-item'} onClick={()=>go(n.id)}><n.icon size={19}/>{n.label}</button>)}</nav><div className="sidebar-note"><span className="badge">正在建设</span><p>从一页笔记开始，<br/>积累自己的知识世界。</p></div><div className="account"><span className="avatar">{user.display_name.slice(0,1)}</span><div><strong>{user.display_name}</strong><small>@{user.username}</small></div><button aria-label="退出登录" className="icon-button" disabled={logout.isPending} onClick={()=>logout.mutate()}><LogOut size={17}/></button></div></aside><main className="main"><header><div><span className="muted">工作空间</span><ChevronRight size={13}/><strong>{titles[section]}</strong></div><button className="icon-button" aria-label="刷新当前数据" onClick={()=>client.invalidateQueries()}><RefreshCw size={17}/></button></header><div className="content"><div className="page-heading"><div><p className="eyebrow">YOUR LEARNING SPACE</p><h1>{titles[section]}</h1></div><span className="version">M1 · 笔记空间</span></div><ErrorMessage error={logout.error}/>{section==='home'?<Home user={user} onGo={go}/>:section==='notes'?<Suspense fallback={<div className="empty">正在打开笔记空间…</div>}><NotesWorkspace owner={user.id} initialNoteId={noteToOpen}/></Suspense>:section==='chat'?<Suspense fallback={<div className="empty">正在打开 AI 对话…</div>}><AiChat owner={user.id} onOpenNote={id=>{rememberNote(user.id,id);go('notes');setNoteToOpen(id)}}/></Suspense>:section==='ai'?<Suspense fallback={<div className="empty">正在读取模型设置…</div>}><AiSettings owner={user.id} admin={user.role==='admin'}/></Suspense>:section==='invites'&&user.role==='admin'?<InvitesPanel/>:section==='users'&&user.role==='admin'?<UsersPanel/>:section==='audit'&&user.role==='admin'?<AuditPanel/>:<JobsPanel admin={user.role==='admin'}/>}<footer>知页 · 给知识一个可以生长的地方</footer></div></main></div>
+  return <div className="app-shell"><aside className="sidebar"><div className="brand"><BookOpen/> 知页 <span>AI NOTES</span></div><div className="workspace-chip"><span className="workspace-avatar">知</span><div><strong>我们的学习空间</strong><small>个人与朋友 · 邀请制</small></div></div><p className="nav-label">工作空间</p><nav>{nav.map(n=><button key={n.id} className={section===n.id?'nav-item selected':'nav-item'} onClick={()=>go(n.id)}><n.icon size={19}/>{n.label}</button>)}</nav><div className="sidebar-note"><span className="badge">正在建设</span><p>从一页笔记开始，<br/>积累自己的知识世界。</p></div><div className="account"><span className="avatar">{user.display_name.slice(0,1)}</span><div><strong>{user.display_name}</strong><small>@{user.username}</small></div><button aria-label="退出登录" className="icon-button" disabled={logout.isPending} onClick={()=>logout.mutate()}><LogOut size={17}/></button></div></aside><main className="main"><header><div><span className="muted">工作空间</span><ChevronRight size={13}/><strong>{titles[section]}</strong></div><button className="icon-button" aria-label="刷新当前数据" onClick={()=>client.invalidateQueries()}><RefreshCw size={17}/></button></header><div className="content"><div className="page-heading"><div><p className="eyebrow">YOUR LEARNING SPACE</p><h1>{titles[section]}</h1></div><span className="version">M1 · 笔记空间</span></div><ErrorMessage error={logout.error}/>{section==='home'?<Home user={user} onGo={go}/>:section==='notes'?<Suspense fallback={<div className="empty">正在打开笔记空间…</div>}><NotesWorkspace owner={user.id} initialNoteId={noteToOpen} onAskText={selection=>{go('chat');setTextSelection(selection)}}/></Suspense>:section==='chat'?<Suspense fallback={<div className="empty">正在打开 AI 对话…</div>}><AiChat owner={user.id} initialTextSelection={textSelection||undefined} onTextSelectionConsumed={requestKey=>setTextSelection(current=>current?.requestKey===requestKey?null:current)} onOpenNote={id=>{rememberNote(user.id,id);go('notes');setNoteToOpen(id)}}/></Suspense>:section==='ai'?<Suspense fallback={<div className="empty">正在读取模型设置…</div>}><AiSettings owner={user.id} admin={user.role==='admin'}/></Suspense>:section==='invites'&&user.role==='admin'?<InvitesPanel/>:section==='users'&&user.role==='admin'?<UsersPanel/>:section==='audit'&&user.role==='admin'?<AuditPanel/>:<JobsPanel admin={user.role==='admin'}/>}<footer>知页 · 给知识一个可以生长的地方</footer></div></main></div>
 }

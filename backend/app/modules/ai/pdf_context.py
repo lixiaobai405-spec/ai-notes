@@ -1,11 +1,10 @@
 """Freeze original PDF page identities; never accept storage keys from the browser."""
-from uuid import UUID
-
 from sqlalchemy import select
 
 from app.modules.files.models import File, FileVariant, NotePage, PdfImport
 from app.modules.notes.models import Note
 from app.modules.ai import schemas as s
+from app.modules.ai.image_context import read_bounded_jpeg
 from app.shared.errors import AppError
 
 BATCH_PAGES = 8
@@ -42,7 +41,7 @@ def detail(db, owner, note_id):
     if [p.pdf_page_number for p, _, _ in ready] != list(range(1, item.page_count + 1)):
         raise AppError(409, "pdf_pages_unavailable", "原 PDF 页面不完整，不能声明已读取整本；请重新导入原件")
     return s.PdfNotebookDetail(id=note.id, title=note.title, revision=note.revision, page_count=item.page_count,
-                              pages=[s.PdfNotebookPage(page_id=p.id, number=p.pdf_page_number, bytes=v.bytes) for p, _, v in ready])
+                              pages=[s.PdfNotebookPage(page_id=p.id, number=p.pdf_page_number, file_id=f.id, bytes=v.bytes) for p, f, v in ready])
 
 
 def batches(source):
@@ -68,11 +67,11 @@ def planned_calls(count):
     return total
 
 
-def freeze(db, owner, data):
+def _freeze(db, owner, data):
     book = detail(db, owner, data.note_id)
     if book.revision != data.revision:
         raise AppError(409, "pdf_changed", "PDF 笔记已更新，请刷新资料范围后再发送")
-    selected = set(data.page_numbers) if data.mode == "pages" else set(range(1, book.page_count + 1))
+    selected = set(data.page_numbers) if data.mode in {"pages", "region"} else set(range(1, book.page_count + 1))
     if not selected or not selected.issubset({p.number for p in book.pages}):
         raise AppError(422, "pdf_page_invalid", "选择的页码超出原 PDF 范围")
     frozen = [{"page_id": str(p.id), "number": p.pdf_page_number, "file_id": str(f.id),
@@ -80,21 +79,50 @@ def freeze(db, owner, data):
               if p.pdf_page_number in selected]
     if any(p["bytes"] > PAGE_BYTES for p in frozen) or sum(p["bytes"] for p in frozen) > TOTAL_BYTES:
         raise AppError(422, "pdf_context_too_large", "页图超过本次处理大小上限，请选择更少页面；尚未调用模型")
-    return {"note_id": str(book.id), "title": book.title, "revision": book.revision,
-            "mode": data.mode, "pages": frozen}
+    source = {"note_id": str(book.id), "title": book.title, "revision": book.revision,
+              "mode": data.mode, "pages": frozen}
+    dimensions = None
+    if data.mode == "region":
+        frozen[0]["region"] = data.region.model_dump()
+        # Only the chosen page is decoded. Whole-page/all preview remains a
+        # metadata-only operation, including for a 200-page notebook.
+        dimensions = read_region(source)[1:]
+    return source, dimensions
+
+
+def freeze(db, owner, data):
+    return _freeze(db, owner, data)[0]
 
 
 def validate(db, owner, source):
-    note, _ = notebook(db, owner, UUID(source["note_id"]))
-    actual = {str(p.id): (str(f.id), p.pdf_page_number, v.object_key, v.bytes) for p, f, v in pages(db, owner, note.id)}
-    for p in source["pages"]:
-        if actual.get(p["page_id"]) != (p["file_id"], p["number"], p["object_key"], p["bytes"]):
-            raise AppError(409, "pdf_source_unavailable", "本次引用的 PDF 页面已失效，停止继续调用模型")
-    return note
+    try:
+        public = s.PdfSourceOut.model_validate(source)
+        note, item = notebook(db, owner, public.note_id)
+        if public.mode == "all" and {p.number for p in public.pages} != set(range(1, item.page_count + 1)):
+            raise ValueError("invalid_full_pdf_source")
+        actual = {str(p.id): (str(f.id), p.pdf_page_number, v.object_key, v.bytes) for p, f, v in pages(db, owner, note.id)}
+        for p in source["pages"]:
+            if type(p["bytes"]) is not int or p["bytes"] <= 0 or actual.get(p["page_id"]) != (
+                    p["file_id"], p["number"], p["object_key"], p["bytes"]):
+                raise ValueError("pdf_identity_changed")
+        return note
+    except (KeyError, TypeError, ValueError):
+        raise AppError(409, "pdf_source_unavailable", "本次引用的 PDF 页面已失效，停止继续调用模型") from None
+
+
+def read_region(source):
+    try:
+        public = s.PdfSourceOut.model_validate(source)
+        if public.mode != "region":
+            raise ValueError("pdf_region_required")
+        return read_bounded_jpeg(source["pages"][0], public.pages[0].region, error_prefix="pdf")
+    except (KeyError, TypeError, ValueError):
+        raise AppError(409, "pdf_source_unavailable", "本次引用的 PDF 选区已失效，停止继续调用模型") from None
 
 
 def preview(db, owner, data):
-    source = freeze(db, owner, data)
+    source, dimensions = _freeze(db, owner, data)
     groups = batches(source)
     return s.PdfPreviewOut(source=s.PdfSourceOut.model_validate(source),
-                           batches=[[p["number"] for p in group] for group in groups], planned_calls=planned_calls(len(groups)))
+                           batches=[[p["number"] for p in group] for group in groups], planned_calls=planned_calls(len(groups)),
+                           **(dict(zip(("width", "height", "crop_width", "crop_height"), dimensions, strict=True)) if dimensions else {}))

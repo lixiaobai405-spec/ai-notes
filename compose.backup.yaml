@@ -1,0 +1,6 @@
+# Optional host-operator access. Not part of the default server deployment.
+# Enable only in an approved maintenance window; never bind a public address.
+services:
+  db:
+    ports:
+      - "127.0.0.1:55435:5432"

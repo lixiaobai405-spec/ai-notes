@@ -18,7 +18,7 @@ CITATION = re.compile(r"\[\[p:([0-9]{1,3})\]\]")
 def metadata(saved, note):
     return s.SavedAnswerOut(run_id=saved.run_id, note_id=note.id, note_title=note.title,
                             notebook_id=note.notebook_id, deleted_at=note.deleted_at,
-                            saved_at=saved.created_at, source=saved.source,
+                            saved_at=saved.created_at, source=chat_service.readable_source(saved.source),
                             cited_page_numbers=saved.cited_page_numbers)
 
 
@@ -44,7 +44,8 @@ def note_provenance(db, user, note_id):
 
 
 def note_content(run, source):
-    allowed = {page.number for page in source.pages} if source else set()
+    text_source = bool(source and source.kind == "text")
+    allowed = {page.number for page in source.pages} if source and not text_source else set()
     image_source = bool(source and source.kind == "image")
     source_label = "图片第 " if image_source else "原 PDF 第 "
     cited = set()
@@ -77,10 +78,14 @@ def note_content(run, source):
         answer = {"type": "doc", "content": literal(run.answer)}
     cited = sorted(cited)
     sections = [("问题", literal(run.prompt)), ("AI 回答", answer["content"]), ("生成模型", literal(run.model))]
-    if source:
+    if text_source:
+        reference = (f"{source.title}\n来源版本 {source.revision}\n"
+                     f"原文码点范围 [{source.start}, {source.end})\n所选原文：\n{source.quote}")
+        sections.append(("文字来源", literal(reference)))
+    elif source:
         numbers = "、".join(str(page.number) for page in source.pages)
         reference = f"{source.title}\n{source_label}{numbers} 页\n来源版本 {source.revision}"
-        if image_source:
+        if image_source or source.mode == "region":
             reference += "\n" + source_context.region_text(source.pages[0].region.model_dump() if source.pages[0].region else None)
         if cited:
             reference += "\n回答引用" + source_label + "、".join(map(str, cited)) + " 页"

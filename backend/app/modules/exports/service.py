@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.modules.ai.models import AiConversation, AiRun, AiSavedNote, AiStep
 from app.modules.ai.source_context import public_source
+from app.modules.ai.text_context import validate_snapshot
 from app.modules.files import service as files
 from app.modules.files.models import File, FileVariant, NotePage, PdfImport
 from app.modules.notes.models import Folder, Note, Notebook, NoteTag, NoteVersion, Tag
@@ -143,7 +144,8 @@ def create_archive(owner_id, auth_session_id):
 
             owned_files = {str(f["id"]): f for f in collections["files"]}
             owned_pages = {str(p["id"]): p for p in collections["note_pages"]}
-            owned_notes = {str(n["id"]) for n in collections["notes"]}
+            owned_notes = {str(n["id"]): n for n in collections["notes"]}
+            versions = {(str(v["note_id"]), v["revision"]): v for v in collections["note_versions"]}
             reading = {}
             variant_kinds = {}
             objects = []
@@ -204,8 +206,24 @@ def create_archive(owner_id, auth_session_id):
                         continue
                     try:
                         safe = public_source(source).model_dump(mode="json")
-                        if safe["note_id"] not in owned_notes or not safe["pages"]:
+                        if safe["note_id"] not in owned_notes:
                             raise ValueError("foreign_source_note")
+                        if safe["kind"] == "text":
+                            note = owned_notes[safe["note_id"]]
+                            if (set(source) != {"kind", "note_id", "revision", "title", "start", "end", "quote"}
+                                    or note["kind"] != "text"):
+                                raise ValueError("invalid_text_source")
+                            version = versions[(safe["note_id"], safe["revision"])]
+                            if (not isinstance(version["snapshot"], dict)
+                                    or version["snapshot"].get("owner_id") != str(note["owner_id"])):
+                                raise ValueError("text_snapshot_owner_mismatch")
+                            validate_snapshot(safe, version["snapshot"])
+                            if table == "ai_saved_notes" and record["cited_page_numbers"] != []:
+                                raise ValueError("invalid_text_citations")
+                            record["source"] = safe
+                            continue
+                        if not safe["pages"]:
+                            raise ValueError("source_pages_missing")
                         if safe["kind"] == "image" and (len(safe["pages"]) != 1
                                 or (safe["mode"] == "region") != (safe["pages"][0].get("region") is not None)):
                             raise ValueError("invalid_image_source")

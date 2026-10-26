@@ -1,0 +1,26 @@
+{
+  "repository": "/opt/ai-notes",
+  "python": "/opt/ai-notes/.ops-venv/bin/python",
+  "docker": "/usr/bin/docker",
+  "compose_files": [
+    "/opt/ai-notes/compose.server.yaml",
+    "/opt/ai-notes/compose.backup.yaml"
+  ],
+  "compose_env_file": "/opt/ai-notes/.env.server",
+  "project_name": "ai-notes-server",
+  "database_url_file": "/opt/ai-notes/.local/backup-database-url.txt",
+  "storage_backend": "oss",
+  "storage_root": null,
+  "oss_env_file": "/opt/ai-notes/.env.server",
+  "backup_root": "/opt/ai-notes/.backups/scheduled",
+  "state_root": "/opt/ai-notes/.local/backup-schedule-state",
+  "keep_last": 7,
+  "maintenance_start_utc": "19:00",
+  "maintenance_minutes": 60,
+  "backup_timeout": 1800,
+  "command_timeout": 120,
+  "restore_timeout": 120,
+  "notification_command": [],
+  "notification_timeout": 15,
+  "writers_exclusive_confirmed": false
+}

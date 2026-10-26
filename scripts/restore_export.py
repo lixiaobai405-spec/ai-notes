@@ -34,6 +34,7 @@ from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 
 from app.modules.ai.schemas import RunOut  # noqa: E402
 from app.modules.ai.source_context import public_source  # noqa: E402
+from app.modules.ai.text_context import validate_snapshot  # noqa: E402
 from app.modules.exports.service import FIELDS  # noqa: E402
 from app.modules.files.models import UploadSession  # noqa: E402
 from app.modules.files.storage import LocalStorage  # noqa: E402
@@ -240,9 +241,17 @@ def _unique(rows, fields):
     _require(len(set(values)) == len(values))
 
 
-def _source(source, *, internal, notes, pages, files, variants, keys, pdf_imports):
+def _source(source, *, internal, notes, versions, pages, files, variants, keys, pdf_imports):
     if source is None:
         return None
+    _require(isinstance(source, dict))
+    if source.get("kind") == "text":
+        _require(set(source) == {"kind", "note_id", "title", "revision", "start", "end", "quote"})
+        _require(notes[source["note_id"]]["kind"] == "text")
+        snapshot = versions[(source["note_id"], source["revision"])]["snapshot"]
+        _require(snapshot.get("owner_id") == str(notes[source["note_id"]]["owner_id"]))
+        validate_snapshot(source, snapshot)
+        return public_source(source).model_dump(mode="json")
     _require(isinstance(source, dict) and set(source) == {"kind", "note_id", "title", "revision", "mode", "pages"})
     _require(source["kind"] in {"pdf", "image"} and type(source["revision"]) is int
              and source["revision"] > 0 and isinstance(source["title"], str)
@@ -251,7 +260,7 @@ def _source(source, *, internal, notes, pages, files, variants, keys, pdf_import
     selected = source["pages"]
     _require(isinstance(selected, list) and 0 < len(selected) <= 200)
     image = source["kind"] == "image"
-    _require(source["mode"] in ({"page", "region"} if image else {"pages", "all"}))
+    _require(source["mode"] in ({"page", "region"} if image else {"pages", "all", "region"}))
     if image:
         _require(len(selected) == 1 and (source["mode"] == "region") == (selected[0].get("region") is not None))
     else:
@@ -260,7 +269,10 @@ def _source(source, *, internal, notes, pages, files, variants, keys, pdf_import
     seen_ids, seen_numbers = set(), set()
     for frozen in selected:
         expected_fields = {"page_id", "number", "file_id", "reading_path"} | ({"region"} if image else set())
-        _require(isinstance(frozen, dict) and set(frozen) == expected_fields)
+        # v1 PDF exports omitted region. New full-page exports may carry null;
+        # a region source must retain its validated rectangle exactly.
+        _require(isinstance(frozen, dict) and (set(frozen) == expected_fields
+                 or not image and set(frozen) == expected_fields | {"region"}))
         _positive(frozen["number"])
         _require(frozen["page_id"] not in seen_ids and frozen["number"] not in seen_numbers)
         seen_ids.add(frozen["page_id"])
@@ -341,6 +353,7 @@ def _prepare(manifest, collections, prefix):
             # Snapshots are immutable historical JSON, including removed
             # organization IDs; never invent rows or rewrite that history.
             _require(isinstance(row["snapshot"], dict))
+        versions = {(str(row["note_id"]), row["revision"]): row for row in rows["note_versions"]}
         files = indexes["files"]
         for row, original in zip(rows["files"], collections["files"], strict=True):
             _require(row["mime"] in MIMES and row["status"] in {"processing", "ready", "rejected", "expired"})
@@ -420,7 +433,7 @@ def _prepare(manifest, collections, prefix):
             _require(row["status"] in TERMINAL_RUNS and isinstance(row["usage"], (dict, type(None)))
                      and isinstance(row["progress"], (dict, type(None))) and bool(row["prompt"].strip()))
             row.update(request_key=uuid4(), request_hash=hashlib.sha256(uuid4().bytes).hexdigest(), input_messages=[], lease_until=None)
-            row["source"] = _source(row["source"], internal=True, notes=notes, pages=pages, files=files, variants=variants, keys=keys, pdf_imports=pdf_by_note)
+            row["source"] = _source(row["source"], internal=True, notes=notes, versions=versions, pages=pages, files=files, variants=variants, keys=keys, pdf_imports=pdf_by_note)
             # API consumers must be able to read restored metadata, including
             # usage/progress. Do not normalize or rewrite its valid JSON.
             RunOut.model_validate(row)
@@ -440,12 +453,13 @@ def _prepare(manifest, collections, prefix):
             for number in row["cited_page_numbers"]:
                 _positive(number)
             _require(len(set(row["cited_page_numbers"])) == len(row["cited_page_numbers"]))
-            row["source"] = _source(row["source"], internal=False, notes=notes, pages=pages, files=files, variants=variants, keys=keys, pdf_imports=pdf_by_note)
+            row["source"] = _source(row["source"], internal=False, notes=notes, versions=versions, pages=pages, files=files, variants=variants, keys=keys, pdf_imports=pdf_by_note)
             original_run = indexes["ai_runs"][str(row["run_id"])]
             _require(notes[str(row["note_id"])]["kind"] == "text" and original_run["status"] == "succeeded"
                      and bool(original_run["answer"].strip())
                      and row["source"] == (public_source(original_run["source"]).model_dump(mode="json") if original_run["source"] else None))
             _require(not row["cited_page_numbers"] or row["source"] is not None
+                     and row["source"]["kind"] != "text"
                      and set(row["cited_page_numbers"]) <= {page["number"] for page in row["source"]["pages"]})
         return rows, keys, normalized_steps
     except RestoreError:

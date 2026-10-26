@@ -1,0 +1,3572 @@
+{
+  "catalog": {
+    "ai_credentials": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "ai_credential_ciphertext",
+          "sqltext": "octet_length(ciphertext) > 28"
+        },
+        {
+          "dialect_options": {},
+          "name": "ai_credential_test_status",
+          "sqltext": "test_status IS NULL OR (test_status::text = ANY (ARRAY['valid'::character varying, 'invalid'::character varying, 'unavailable'::character varying]::text[]))"
+        },
+        {
+          "dialect_options": {},
+          "name": "ai_credential_versions",
+          "sqltext": "revision > 0 AND key_version > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "available_models",
+          "nullable": false,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "ciphertext",
+          "nullable": false,
+          "type": "BYTEA"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "key_suffix",
+          "nullable": false,
+          "type": "VARCHAR(4)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "key_version",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "last_test_started_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "last_tested_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "provider",
+          "nullable": false,
+          "type": "VARCHAR(32)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "test_code",
+          "nullable": true,
+          "type": "VARCHAR(32)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "test_status",
+          "nullable": true,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "updated_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "ai_credentials_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "provider"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_ai_credentials_owner_provider",
+          "unique": true
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "ai_credentials_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "provider"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_ai_credentials_owner_provider"
+        }
+      ]
+    },
+    "alembic_version": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "version_num",
+          "nullable": false,
+          "type": "VARCHAR(32)"
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": [],
+      "primary_key": {
+        "columns": [
+          "version_num"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "alembic_version_pkc"
+      },
+      "unique_constraints": []
+    },
+    "audit_logs": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "action",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "actor_id",
+          "nullable": true,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "details",
+          "nullable": false,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "request_id",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "resource_id",
+          "nullable": true,
+          "type": "VARCHAR(64)"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "actor_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "audit_logs_actor_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "actor_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_audit_logs_actor_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "audit_logs_pkey"
+      },
+      "unique_constraints": []
+    },
+    "file_tickets": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "file_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "token_hash",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "file_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_file_ticket_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "files"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "file_tickets_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "expires_at"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_file_tickets_expires_at",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_file_tickets_owner_id",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "file_tickets_token_hash_key",
+          "unique": true
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "file_tickets_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "file_tickets_token_hash_key"
+        }
+      ]
+    },
+    "file_variants": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "file_variant_bytes",
+          "sqltext": "bytes > 0"
+        },
+        {
+          "dialect_options": {},
+          "name": "file_variant_kind",
+          "sqltext": "kind::text = ANY (ARRAY['reading'::character varying, 'thumbnail'::character varying]::text[])"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "bytes",
+          "nullable": false,
+          "type": "BIGINT"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "file_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "kind",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "object_key",
+          "nullable": false,
+          "type": "VARCHAR(256)"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "file_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "file_variants_file_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "files"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "file_id",
+            "kind"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_file_variant_kind",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "file_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_file_variants_file_id",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "object_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "file_variants_object_key_key",
+          "unique": true
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "file_variants_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "file_id",
+            "kind"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_file_variant_kind"
+        },
+        {
+          "columns": [
+            "object_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "file_variants_object_key_key"
+        }
+      ]
+    },
+    "files": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "file_bytes_positive",
+          "sqltext": "expected_bytes > 0 AND (bytes IS NULL OR bytes > 0)"
+        },
+        {
+          "dialect_options": {},
+          "name": "file_status",
+          "sqltext": "status::text = ANY (ARRAY['uploading'::character varying, 'processing'::character varying, 'ready'::character varying, 'rejected'::character varying, 'expired'::character varying]::text[])"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "bytes",
+          "nullable": true,
+          "type": "BIGINT"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "error_code",
+          "nullable": true,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expected_bytes",
+          "nullable": false,
+          "type": "BIGINT"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "filename",
+          "nullable": false,
+          "type": "VARCHAR(200)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "height",
+          "nullable": true,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "mime",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "object_key",
+          "nullable": false,
+          "type": "VARCHAR(256)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "sha256",
+          "nullable": true,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "status",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "width",
+          "nullable": true,
+          "type": "INTEGER"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "files_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "object_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "files_object_key_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_files_owner_id",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_files_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "files_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "object_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "files_object_key_key"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_files_owner_id"
+        }
+      ]
+    },
+    "folders": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "folder_not_self",
+          "sqltext": "parent_id IS NULL OR parent_id <> id"
+        },
+        {
+          "dialect_options": {},
+          "name": "folder_revision",
+          "sqltext": "revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "name",
+          "nullable": false,
+          "type": "VARCHAR(120)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "parent_id",
+          "nullable": true,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "updated_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "parent_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_folder_parent_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "folders"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "folders_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_folders_owner_id",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "parent_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_folders_owner_parent",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_folders_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "folders_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_folders_owner_id"
+        }
+      ]
+    },
+    "invite_codes": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "invite_usage",
+          "sqltext": "max_uses > 0 AND used_count >= 0 AND used_count <= max_uses"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "code_hash",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "creator_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "disabled",
+          "nullable": false,
+          "type": "BOOLEAN"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "label",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "max_uses",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "used_count",
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "creator_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "invite_codes_creator_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "code_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "invite_codes_code_hash_key",
+          "unique": true
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "invite_codes_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "code_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "invite_codes_code_hash_key"
+        }
+      ]
+    },
+    "jobs": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "job_attempts",
+          "sqltext": "attempts >= 0 AND max_attempts > 0"
+        },
+        {
+          "dialect_options": {},
+          "name": "job_status",
+          "sqltext": "status::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "attempts",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "dedupe_key",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "error_code",
+          "nullable": true,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "kind",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "lease_until",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "max_attempts",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "payload",
+          "nullable": false,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "result",
+          "nullable": true,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "run_after",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "status",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "worker_token",
+          "nullable": true,
+          "type": "VARCHAR(64)"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "jobs_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "dedupe_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "job_dedupe",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_jobs_owner_id",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "status",
+            "run_after"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_jobs_claim",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "jobs_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "dedupe_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "job_dedupe"
+        }
+      ]
+    },
+    "note_pages": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "page_position_revision",
+          "sqltext": "\"position\" >= 0 AND revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "file_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "note_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "position",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "file_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_page_file_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "files"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "note_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_page_note_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "notes"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "note_pages_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "note_id",
+            "file_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_note_page_file",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "note_id",
+            "position"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_note_page_position",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_note_pages_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "note_pages_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "note_id",
+            "file_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_note_page_file"
+        },
+        {
+          "columns": [
+            "note_id",
+            "position"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_note_page_position"
+        }
+      ]
+    },
+    "note_tags": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "note_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "tag_id",
+          "nullable": false,
+          "type": "UUID"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "note_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_note_tag_note_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "notes"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "tag_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_note_tag_tag_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "tags"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "note_tags_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "tag_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_note_tags_owner_tag",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "owner_id",
+          "note_id",
+          "tag_id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "note_tags_pkey"
+      },
+      "unique_constraints": []
+    },
+    "note_versions": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "note_version_revision",
+          "sqltext": "revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "note_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "snapshot",
+          "nullable": false,
+          "type": "JSONB"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "note_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_note_version_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "notes"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "note_versions_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "note_id",
+            "revision"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_note_versions_revision",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_note_versions_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "note_versions_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "note_id",
+            "revision"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_note_versions_revision"
+        }
+      ]
+    },
+    "notebooks": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "notebook_revision",
+          "sqltext": "revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "folder_id",
+          "nullable": true,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "name",
+          "nullable": false,
+          "type": "VARCHAR(120)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "updated_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "folder_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_notebook_folder_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "folders"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "notebooks_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "folder_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notebooks_owner_folder",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_notebooks_owner_id",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notebooks_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "notebooks_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_notebooks_owner_id"
+        }
+      ]
+    },
+    "notes": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "image_note_no_body",
+          "sqltext": "kind::text <> 'image'::text OR body_json = '{}'::jsonb AND plain_text = ''::text"
+        },
+        {
+          "dialect_options": {},
+          "name": "note_kind",
+          "sqltext": "kind::text = ANY (ARRAY['text'::character varying, 'image'::character varying]::text[])"
+        },
+        {
+          "dialect_options": {},
+          "name": "note_revision",
+          "sqltext": "revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "body_json",
+          "nullable": false,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "deleted_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "kind",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "notebook_id",
+          "nullable": true,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "plain_text",
+          "nullable": false,
+          "type": "TEXT"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "title",
+          "nullable": false,
+          "type": "VARCHAR(200)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "updated_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "notebook_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_note_notebook_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "notebooks"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "notes_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "deleted_at",
+            "updated_at"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notes_owner_deleted_updated",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_notes_owner_id",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "notebook_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notes_owner_notebook",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notes_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "notes_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_notes_owner_id"
+        }
+      ]
+    },
+    "notifications": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "event_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "message",
+          "nullable": false,
+          "type": "VARCHAR(256)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "read_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "user_id",
+          "nullable": false,
+          "type": "UUID"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "event_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "notifications_event_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "outbox_events"
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "notifications_user_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "event_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "notifications_event_id_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "user_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_notifications_user_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "notifications_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "event_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "notifications_event_id_key"
+        }
+      ]
+    },
+    "outbox_events": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "delivered_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "job_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "kind",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "payload",
+          "nullable": false,
+          "type": "JSONB"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "user_id",
+          "nullable": false,
+          "type": "UUID"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "job_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "outbox_events_job_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "jobs"
+        },
+        {
+          "columns": [
+            "user_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "outbox_events_user_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "delivered_at"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_outbox_events_delivered_at",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "job_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "outbox_events_job_id_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "user_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_outbox_events_user_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "outbox_events_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "job_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "outbox_events_job_id_key"
+        }
+      ]
+    },
+    "password_resets": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "token_hash",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "used_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "user_id",
+          "nullable": false,
+          "type": "UUID"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "password_resets_user_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "password_resets_token_hash_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "user_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_password_resets_user_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "password_resets_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "password_resets_token_hash_key"
+        }
+      ]
+    },
+    "rate_buckets": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "count",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "key",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "expires_at"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_rate_buckets_expires_at",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "key"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "rate_buckets_pkey"
+      },
+      "unique_constraints": []
+    },
+    "sessions": {
+      "check_constraints": [],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "csrf_hash",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revoked_at",
+          "nullable": true,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "token_hash",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "user_id",
+          "nullable": false,
+          "type": "UUID"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "user_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "sessions_user_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "sessions_token_hash_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "user_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_sessions_user_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "sessions_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "token_hash"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "sessions_token_hash_key"
+        }
+      ]
+    },
+    "tags": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "tag_revision",
+          "sqltext": "revision > 0"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "name",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "revision",
+          "nullable": false,
+          "type": "INTEGER"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "updated_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "tags_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_tags_owner_id",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "name"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_tags_owner_name",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_tags_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "tags_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "owner_id",
+            "id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_tags_owner_id"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "name"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_tags_owner_name"
+        }
+      ]
+    },
+    "upload_sessions": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "upload_status",
+          "sqltext": "status::text = ANY (ARRAY['pending'::character varying, 'received'::character varying, 'completed'::character varying, 'expired'::character varying]::text[])"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "expires_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "file_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "note_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "owner_id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "request_key",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "status",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        }
+      ],
+      "foreign_keys": [
+        {
+          "columns": [
+            "owner_id",
+            "file_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_upload_file_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "files"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "note_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "fk_upload_note_owner",
+          "options": {},
+          "referred_columns": [
+            "owner_id",
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "notes"
+        },
+        {
+          "columns": [
+            "owner_id"
+          ],
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "upload_sessions_owner_id_fkey",
+          "options": {},
+          "referred_columns": [
+            "id"
+          ],
+          "referred_schema": "public",
+          "referred_table": "users"
+        }
+      ],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "expires_at"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_upload_sessions_expires_at",
+          "unique": false
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "file_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "upload_sessions_file_id_key",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id",
+            "request_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "uq_upload_request",
+          "unique": true
+        },
+        {
+          "column_sorting": {},
+          "columns": [
+            "owner_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "ix_upload_sessions_owner_id",
+          "unique": false
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "upload_sessions_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "file_id"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "upload_sessions_file_id_key"
+        },
+        {
+          "columns": [
+            "owner_id",
+            "request_key"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "uq_upload_request"
+        }
+      ]
+    },
+    "users": {
+      "check_constraints": [
+        {
+          "dialect_options": {},
+          "name": "user_role",
+          "sqltext": "role::text = ANY (ARRAY['user'::character varying, 'admin'::character varying]::text[])"
+        },
+        {
+          "dialect_options": {},
+          "name": "user_status",
+          "sqltext": "status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])"
+        }
+      ],
+      "columns": [
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "created_at",
+          "nullable": false,
+          "type": "TIMESTAMP WITH TIME ZONE"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "display_name",
+          "nullable": false,
+          "type": "VARCHAR(64)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "id",
+          "nullable": false,
+          "type": "UUID"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "password_hash",
+          "nullable": false,
+          "type": "TEXT"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "role",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "status",
+          "nullable": false,
+          "type": "VARCHAR(16)"
+        },
+        {
+          "computed": null,
+          "default": null,
+          "identity": null,
+          "name": "username",
+          "nullable": false,
+          "type": "VARCHAR(32)"
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": [
+        {
+          "column_sorting": {},
+          "columns": [
+            "username"
+          ],
+          "dialect_options": {
+            "postgresql_include": []
+          },
+          "expressions": null,
+          "name": "users_username_key",
+          "unique": true
+        }
+      ],
+      "primary_key": {
+        "columns": [
+          "id"
+        ],
+        "dialect_options": {
+          "postgresql_include": []
+        },
+        "flags": {
+          "deferrable": false,
+          "initially_deferred": false,
+          "validated": true
+        },
+        "name": "users_pkey"
+      },
+      "unique_constraints": [
+        {
+          "columns": [
+            "username"
+          ],
+          "dialect_options": {
+            "postgresql_include": [],
+            "postgresql_nulls_not_distinct": false
+          },
+          "flags": {
+            "deferrable": false,
+            "initially_deferred": false,
+            "validated": true
+          },
+          "name": "users_username_key"
+        }
+      ]
+    }
+  },
+  "check_sqltext_variants": {
+    "ai_credentials": {
+      "ai_credential_test_status": [
+        "test_status IS NULL OR (test_status::text = ANY (ARRAY['valid'::character varying, 'invalid'::character varying, 'unavailable'::character varying]::text[]))",
+        "test_status IS NULL OR (test_status::text = ANY (ARRAY['valid'::character varying::text, 'invalid'::character varying::text, 'unavailable'::character varying::text]))"
+      ]
+    },
+    "file_variants": {
+      "file_variant_kind": [
+        "kind::text = ANY (ARRAY['reading'::character varying, 'thumbnail'::character varying]::text[])",
+        "kind::text = ANY (ARRAY['reading'::character varying::text, 'thumbnail'::character varying::text])"
+      ]
+    },
+    "files": {
+      "file_status": [
+        "status::text = ANY (ARRAY['uploading'::character varying, 'processing'::character varying, 'ready'::character varying, 'rejected'::character varying, 'expired'::character varying]::text[])",
+        "status::text = ANY (ARRAY['uploading'::character varying::text, 'processing'::character varying::text, 'ready'::character varying::text, 'rejected'::character varying::text, 'expired'::character varying::text])"
+      ]
+    },
+    "jobs": {
+      "job_status": [
+        "status::text = ANY (ARRAY['queued'::character varying, 'running'::character varying, 'succeeded'::character varying, 'failed'::character varying]::text[])",
+        "status::text = ANY (ARRAY['queued'::character varying::text, 'running'::character varying::text, 'succeeded'::character varying::text, 'failed'::character varying::text])"
+      ]
+    },
+    "notes": {
+      "note_kind": [
+        "kind::text = ANY (ARRAY['text'::character varying, 'image'::character varying]::text[])",
+        "kind::text = ANY (ARRAY['text'::character varying::text, 'image'::character varying::text])"
+      ]
+    },
+    "upload_sessions": {
+      "upload_status": [
+        "status::text = ANY (ARRAY['pending'::character varying, 'received'::character varying, 'completed'::character varying, 'expired'::character varying]::text[])",
+        "status::text = ANY (ARRAY['pending'::character varying::text, 'received'::character varying::text, 'completed'::character varying::text, 'expired'::character varying::text])"
+      ]
+    },
+    "users": {
+      "user_role": [
+        "role::text = ANY (ARRAY['user'::character varying, 'admin'::character varying]::text[])",
+        "role::text = ANY (ARRAY['user'::character varying::text, 'admin'::character varying::text])"
+      ],
+      "user_status": [
+        "status::text = ANY (ARRAY['active'::character varying, 'disabled'::character varying]::text[])",
+        "status::text = ANY (ARRAY['active'::character varying::text, 'disabled'::character varying::text])"
+      ]
+    }
+  },
+  "format_version": 1,
+  "migration_sources_sha256_lf": {
+    "0b3b93086d90_m1_private_files_upload_sessions_and_.py": "7a513eaecdbf7bd90c72995689ba7e7b9883979d1a28ca8e528adc82287cef5b",
+    "344f1b4b059e_m0_foundation.py": "3f5890f55a3c3b9751601c0a65ba6ef91480d23fb8691c5b03e33f90e7a26fba",
+    "b5ebe7f299de_m1_notes_organization_and_versions.py": "17546803c1ec1439ce20afc68a2eb89a8746f8013a83c93f49a42911824e7b75",
+    "c2e41a9f3b67_personal_ai_credentials.py": "82fb89afd0cec10b975c262650a31c5aa8fc822aa6dba2264590426b6d092320"
+  },
+  "postgres_major": 16,
+  "revision": "c2e41a9f3b67",
+  "tables": [
+    "ai_credentials",
+    "alembic_version",
+    "audit_logs",
+    "file_tickets",
+    "file_variants",
+    "files",
+    "folders",
+    "invite_codes",
+    "jobs",
+    "note_pages",
+    "note_tags",
+    "note_versions",
+    "notebooks",
+    "notes",
+    "notifications",
+    "outbox_events",
+    "password_resets",
+    "rate_buckets",
+    "sessions",
+    "tags",
+    "upload_sessions",
+    "users"
+  ]
+}

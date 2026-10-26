@@ -56,3 +56,9 @@ jobs:
       - run: git diff --exit-code -- backend/openapi.json
       - run: cp .env.example .env && docker compose config --quiet
       - run: docker compose build
+      - name: Verify isolated IP HTTPS
+        run: |
+          python -m unittest discover -s tests/https_fixtures -p "test_*.py"
+          docker build --tag ai-notes-https-validation ./frontend
+          docker build --tag ai-notes-https-python ./backend
+          python scripts/verify_https_isolated.py --frontend-image ai-notes-https-validation --python-image ai-notes-https-python

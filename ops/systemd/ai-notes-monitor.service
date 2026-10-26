@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Notes read-only private monitoring snapshot
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/ai-notes
+EnvironmentFile=/opt/ai-notes/.local/monitoring/monitoring.env
+Environment=DEEPSEEK_API_KEY=
+ExecStart=/opt/ai-notes/.ops-venv/bin/python -m scripts.site_monitor sample --config /opt/ai-notes/.local/monitoring/config.json
+UMask=0077
+TimeoutStartSec=90s
+TimeoutStopSec=5s
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/ai-notes/monitoring
+StandardOutput=journal
+StandardError=journal

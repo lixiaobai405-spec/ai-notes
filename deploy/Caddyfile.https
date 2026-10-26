@@ -1,0 +1,30 @@
+{
+  default_sni {$SITE_IP}
+}
+
+https://{$SITE_IP} {
+  tls {
+    issuer acme {
+      dir {$ACME_DIRECTORY}
+      profile shortlived
+      disable_tlsalpn_challenge
+    }
+  }
+  handle /api/* {
+    reverse_proxy api:8000
+  }
+  @apiDocs path /docs /docs/* /redoc /redoc/* /openapi.json
+  handle @apiDocs {
+    respond 404
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+  header {
+    X-Content-Type-Options nosniff
+    X-Frame-Options DENY
+    Referrer-Policy same-origin
+  }
+}

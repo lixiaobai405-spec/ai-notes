@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Notes verified site backup in a maintenance window
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/opt/ai-notes
+UMask=0077
+ExecStart=/opt/ai-notes/.ops-venv/bin/python /opt/ai-notes/scripts/site_backup_schedule.py run --config /opt/ai-notes/.local/backup-schedule.json
+ExecStopPost=/opt/ai-notes/.ops-venv/bin/python /opt/ai-notes/scripts/site_backup_schedule.py recover-services --config /opt/ai-notes/.local/backup-schedule.json
+TimeoutStartSec=55min
+TimeoutStopSec=5min
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/ai-notes/.backups/scheduled /opt/ai-notes/.local/backup-schedule-state
+StandardOutput=journal
+StandardError=journal

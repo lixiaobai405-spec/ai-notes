@@ -100,14 +100,26 @@ def _read(source):
         if source["kind"] != "image" or len(source["pages"]) != 1:
             raise ValueError("invalid_image_source")
         page = source["pages"][0]
+        region = s.ImageRegion.model_validate(page["region"]) if page.get("region") is not None else None
+        if source["mode"] != ("region" if region else "page"):
+            raise ValueError("invalid_image_region")
+    except (KeyError, TypeError, ValueError):
+        raise AppError(409, "image_source_unavailable", "图片读取失败或内容已损坏，尚未调用模型") from None
+    return read_bounded_jpeg(page, region)
+
+
+def read_bounded_jpeg(page, region, *, error_prefix="image"):
+    """Read/crop one private reading JPEG; never persist the transient crop.
+
+    Both image and PDF region input use these exact decoding/size limits. The
+    caller validates its source kind and page identity before entering here.
+    """
+    try:
         expected = page["bytes"]
         if type(expected) is not int or expected <= 0:
             raise ValueError("invalid_image_size")
         if expected > PAGE_BYTES:
             raise AppError(422, "image_context_too_large", "图片超过 8 MiB 处理上限，尚未调用模型")
-        region = s.ImageRegion.model_validate(page["region"]) if page.get("region") is not None else None
-        if source["mode"] != ("region" if region else "page"):
-            raise ValueError("invalid_image_region")
         storage = files.storage()
         if storage.head(page["object_key"]).size != expected:
             raise ValueError("image_size_changed")
@@ -140,11 +152,15 @@ def _read(source):
                 if len(data) > PAGE_BYTES:
                     raise AppError(422, "image_context_too_large", "图片选区超过 8 MiB 处理上限，尚未调用模型")
                 return data, width, height, crop_width, crop_height
+    except AppError as error:
+        if error_prefix == "image":
+            raise
+        raise AppError(error.status, error.code.replace("image_", error_prefix + "_", 1), error.message) from None
     except StorageUnavailable:
-        raise AppError(503, "image_storage_unavailable", "图片存储暂不可用，请稍后重试") from None
+        raise AppError(503, error_prefix + "_storage_unavailable", "图片存储暂不可用，请稍后重试") from None
     except (KeyError, TypeError, ValueError, UnidentifiedImageError, FileNotFoundError,
             OSError, SyntaxError, Image.DecompressionBombError, Image.DecompressionBombWarning):
-        raise AppError(409, "image_source_unavailable", "图片读取失败或内容已损坏，尚未调用模型") from None
+        raise AppError(409, error_prefix + "_source_unavailable", "图片读取失败或内容已损坏，尚未调用模型") from None
 
 
 def read_image(source):

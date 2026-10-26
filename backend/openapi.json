@@ -8171,6 +8171,129 @@
         }
       }
     },
+    "/api/v1/ai/runs/{run_id}/source-text": {
+      "get": {
+        "tags": [
+          "ai-chat"
+        ],
+        "summary": "Source Text",
+        "operationId": "source_text_api_v1_ai_runs__run_id__source_text_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TextSourceReadOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        }
+      }
+    },
     "/api/v1/ai/conversations": {
       "get": {
         "tags": [
@@ -9487,7 +9610,7 @@
             }
           },
           "413": {
-            "description": "Request Entity Too Large",
+            "description": "Content Too Large",
             "content": {
               "application/json": {
                 "schema": {
@@ -11361,7 +11484,8 @@
             "type": "string",
             "enum": [
               "pages",
-              "all"
+              "all",
+              "region"
             ],
             "title": "Mode"
           },
@@ -11372,6 +11496,16 @@
             "type": "array",
             "maxItems": 200,
             "title": "Page Numbers"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageRegion"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -11458,7 +11592,14 @@
           },
           "number": {
             "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
             "title": "Number"
+          },
+          "file_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "File Id"
           },
           "bytes": {
             "type": "integer",
@@ -11469,28 +11610,10 @@
         "required": [
           "page_id",
           "number",
+          "file_id",
           "bytes"
         ],
         "title": "PdfNotebookPage"
-      },
-      "PdfPageRef": {
-        "properties": {
-          "page_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Page Id"
-          },
-          "number": {
-            "type": "integer",
-            "title": "Number"
-          }
-        },
-        "type": "object",
-        "required": [
-          "page_id",
-          "number"
-        ],
-        "title": "PdfPageRef"
       },
       "PdfPreviewOut": {
         "properties": {
@@ -11510,6 +11633,50 @@
           "planned_calls": {
             "type": "integer",
             "title": "Planned Calls"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "crop_width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Width"
+          },
+          "crop_height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crop Height"
           }
         },
         "type": "object",
@@ -11607,15 +11774,18 @@
             "type": "string",
             "enum": [
               "pages",
-              "all"
+              "all",
+              "region"
             ],
             "title": "Mode"
           },
           "pages": {
             "items": {
-              "$ref": "#/components/schemas/PdfPageRef"
+              "$ref": "#/components/schemas/PdfSourcePageRef"
             },
             "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
             "title": "Pages"
           }
         },
@@ -11628,6 +11798,37 @@
           "pages"
         ],
         "title": "PdfSourceOut"
+      },
+      "PdfSourcePageRef": {
+        "properties": {
+          "page_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Page Id"
+          },
+          "number": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Number"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageRegion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "page_id",
+          "number"
+        ],
+        "title": "PdfSourcePageRef"
       },
       "RegisterIn": {
         "properties": {
@@ -11801,6 +12002,16 @@
                 "type": "null"
               }
             ]
+          },
+          "text": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TextInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -11902,6 +12113,9 @@
               },
               {
                 "$ref": "#/components/schemas/ImageSourceOut"
+              },
+              {
+                "$ref": "#/components/schemas/TextSourceOut"
               },
               {
                 "type": "null"
@@ -12030,6 +12244,9 @@
                 "$ref": "#/components/schemas/ImageSourceOut"
               },
               {
+                "$ref": "#/components/schemas/TextSourceOut"
+              },
+              {
                 "type": "null"
               }
             ],
@@ -12108,6 +12325,9 @@
               },
               {
                 "$ref": "#/components/schemas/ImageSourceOut"
+              },
+              {
+                "$ref": "#/components/schemas/TextSourceOut"
               },
               {
                 "type": "null"
@@ -12301,6 +12521,121 @@
           "revision"
         ],
         "title": "TagPatch"
+      },
+      "TextInput": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Note Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "End"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Quote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "note_id",
+          "revision",
+          "start",
+          "end",
+          "quote"
+        ],
+        "title": "TextInput"
+      },
+      "TextSourceOut": {
+        "properties": {
+          "note_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Note Id"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Revision"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "End"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Quote"
+          },
+          "kind": {
+            "type": "string",
+            "const": "text",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "note_id",
+          "revision",
+          "start",
+          "end",
+          "quote",
+          "kind",
+          "title"
+        ],
+        "title": "TextSourceOut"
+      },
+      "TextSourceReadOut": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/TextSourceOut"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "source_changed": {
+            "type": "boolean",
+            "title": "Source Changed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "text",
+          "source_changed"
+        ],
+        "title": "TextSourceReadOut"
       },
       "TicketOut": {
         "properties": {

@@ -10,6 +10,7 @@ import argparse
 from datetime import datetime
 import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import stat
@@ -33,6 +34,7 @@ TABLES = (
 OWNED_TABLES = set(TABLES) - {"file_variants", "ai_steps"}
 UUID_TEXT = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 ASSET_PATH = re.compile(rf"objects/({UUID_TEXT})/(?:original|variants/{UUID_TEXT})")
+TEXT_SOURCE_FIELDS = {"kind", "note_id", "revision", "title", "start", "end", "quote"}
 
 
 class ValidationError(ValueError):
@@ -46,6 +48,116 @@ def _require(condition, code):
 
 def _integer(value):
     return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _source_shape(source):
+    """Validate frozen source scope without importing server dependencies."""
+    if source.get("kind") == "text":
+        _require(set(source) == TEXT_SOURCE_FIELDS, "invalid_source")
+        _uuid(source.get("note_id"))
+        _require(_integer(source.get("revision")) and source["revision"] >= 1
+                 and isinstance(source.get("title"), str) and 0 < len(source["title"]) <= 200
+                 and bool(source["title"].strip()), "invalid_source")
+        _require(_integer(source.get("start")) and source["start"] >= 0
+                 and _integer(source.get("end")) and source["end"] > source["start"], "invalid_source")
+        quote = source.get("quote")
+        _require(isinstance(quote, str) and 0 < len(quote) <= 8000 and bool(quote.strip())
+                 and source["end"] - source["start"] == len(quote), "invalid_source")
+        _valid_text(source["title"])
+        _valid_text(quote)
+        return
+    _require(source.get("kind") in {"pdf", "image"}, "invalid_source")
+    image = source["kind"] == "image"
+    _require(source.get("mode") in ({"page", "region"} if image else {"pages", "all", "region"}), "invalid_source")
+    pages = source.get("pages")
+    _require(isinstance(pages, list) and 0 < len(pages) <= 200, "invalid_source")
+    if image or source["mode"] == "region":
+        _require(len(pages) == 1, "invalid_source")
+    ids, numbers = set(), set()
+    for page in pages:
+        _require(isinstance(page, dict), "invalid_source")
+        identity, number = _uuid(page.get("page_id")), page.get("number")
+        _require(_integer(number) and number >= 1 and (image or number <= 200)
+                 and identity not in ids and number not in numbers, "invalid_source")
+        ids.add(identity); numbers.add(number)
+        region = page.get("region")
+        _require((source["mode"] == "region") == (region is not None), "invalid_source")
+        if region is not None:
+            _require(isinstance(region, dict) and set(region) == {"x", "y", "width", "height"}, "invalid_source")
+            _require(all(type(value) in {int, float} and 0 <= value <= 1
+                         and math.isfinite(value) for value in region.values()), "invalid_source")
+            _require(0 <= region["x"] < 1 and 0 <= region["y"] < 1
+                     and 0 < region["width"] <= 1 and 0 < region["height"] <= 1
+                     and region["x"] + region["width"] <= 1
+                     and region["y"] + region["height"] <= 1, "invalid_source")
+
+
+def _valid_text(value):
+    _require(isinstance(value, str) and "\x00" not in value, "invalid_source")
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        raise ValidationError("invalid_source") from None
+
+
+def _canonical_text(body):
+    """Mirror text_context.canonical_text with bounded, dependency-free input."""
+    _require(isinstance(body, dict), "invalid_text_snapshot")
+    _require(not body or body.get("type") == "doc" and isinstance(body.get("content"), list), "invalid_text_snapshot")
+    stack, nodes = [(body, 0)], 0
+    while stack:
+        value, depth = stack.pop()
+        nodes += 1
+        _require(depth <= 64 and nodes <= 50_000, "invalid_text_snapshot")
+        if isinstance(value, dict):
+            for key in value:
+                _valid_text(key)
+            stack.extend((item, depth + 1) for item in value.values())
+        elif isinstance(value, list):
+            stack.extend((item, depth + 1) for item in value)
+        elif isinstance(value, str):
+            _valid_text(value)
+    _require(len(json.dumps(body, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode("utf-8"))
+             <= 1_048_576, "invalid_text_snapshot")
+    stack = [body]
+    while stack:
+        node = stack.pop()
+        _require(isinstance(node, dict), "invalid_text_snapshot")
+        kind = node.get("type")
+        _require(kind is None or isinstance(kind, str), "invalid_text_snapshot")
+        children = node.get("content", [])
+        _require(isinstance(children, list), "invalid_text_snapshot")
+        if kind == "text":
+            _valid_text(node.get("text"))
+        if kind in {"inlineMath", "blockMath"}:
+            attrs = node.get("attrs", {})
+            _require(isinstance(attrs, dict), "invalid_text_snapshot")
+            _valid_text(attrs.get("latex", ""))
+        stack.extend(children)
+
+    def derive(node):
+        kind = node.get("type")
+        children = node.get("content", [])
+        if kind == "text":
+            return node["text"]
+        if kind in {"inlineMath", "blockMath"}:
+            return node.get("attrs", {}).get("latex", "")
+        if kind == "hardBreak":
+            return "\n"
+        separator = "\n" if kind in {"doc", "bulletList", "orderedList", "listItem", "blockquote"} else ""
+        return separator.join(derive(child) for child in children)
+
+    return derive(body)
+
+
+def _text_snapshot(source, snapshot, owner):
+    _require(isinstance(snapshot, dict) and snapshot.get("id") == source["note_id"]
+             and snapshot.get("owner_id") == owner and snapshot.get("kind") == "text"
+             and type(snapshot.get("revision")) is int and snapshot["revision"] == source["revision"]
+             and snapshot.get("title") == source["title"], "source_mismatch")
+    canonical = _canonical_text(snapshot.get("body_json"))
+    _require(source["end"] <= len(canonical)
+             and canonical[source["start"]:source["end"]] == source["quote"], "source_mismatch")
 
 
 def _uuid(value):
@@ -130,8 +242,13 @@ def _references(collections, payloads, owner):
         identity = (row["note_id"], row["tag_id"])
         _require(identity not in note_tags, "duplicate_record")
         note_tags.add(identity)
+    versions = {}
     for row in collections["note_versions"]:
         ref(row, "note_id", "notes")
+        _require(_integer(row.get("revision")) and row["revision"] >= 1, "invalid_version")
+        identity = (row["note_id"], row["revision"])
+        _require(identity not in versions, "duplicate_record")
+        versions[identity] = row
 
     used_assets = set()
     for row in collections["files"]:
@@ -187,7 +304,17 @@ def _references(collections, payloads, owner):
         if source is None:
             continue
         _require(isinstance(source, dict), "invalid_source")
+        _source_shape(source)
         ref(source, "note_id", "notes")
+        if source["kind"] == "text":
+            _require(indexed["notes"][source["note_id"]].get("kind") == "text", "source_mismatch")
+            version = versions.get((source["note_id"], source["revision"]))
+            _require(version is not None, "missing_reference")
+            _text_snapshot(source, version.get("snapshot"), owner)
+            if "run_id" in row:
+                _require(row.get("cited_page_numbers") == []
+                         and indexed["ai_runs"][row["run_id"]].get("source") == source, "invalid_source")
+            continue
         pages = source.get("pages")
         _require(isinstance(pages, list) and 0 < len(pages) <= MAX_ROWS, "invalid_source")
         for page in pages:

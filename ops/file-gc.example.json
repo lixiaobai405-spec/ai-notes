@@ -1,0 +1,13 @@
+{
+  "database_url_env": "FILE_GC_DATABASE_URL",
+  "state_root": "/var/lib/ai-notes/file-gc-state",
+  "storage": {
+    "backend": "oss",
+    "region": "cn-hangzhou",
+    "bucket": "replace-with-private-bucket",
+    "prefix": "ai-notes/",
+    "access_key_id_env": "FILE_GC_OSS_ACCESS_KEY_ID",
+    "access_key_secret_env": "FILE_GC_OSS_ACCESS_KEY_SECRET",
+    "security_token_env": "FILE_GC_OSS_SECURITY_TOKEN"
+  }
+}

@@ -8,6 +8,7 @@ the separate restore environment offline until its report has been reviewed.
 import argparse
 import base64
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
 import hashlib
@@ -35,6 +36,7 @@ from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from app.shared.db import Base  # noqa: E402
 from app.shared import models as registered_models  # noqa: E402,F401
 from site_backup_support import DockerPostgres, LocalBackupStorage, OSSBackupStorage, SiteBackupError  # noqa: E402
+from site_backup_profiles import LEGACY_REVISION, LEGACY_TABLE_NAMES, validate_legacy_schema  # noqa: E402
 
 
 FORMAT_VERSION = 1
@@ -64,6 +66,24 @@ def _revision():
     cfg.set_main_option("path_separator", "os")
     cfg.set_main_option("script_location", str(REPOSITORY / "backend" / "alembic"))
     return ScriptDirectory.from_config(cfg).get_current_head()
+
+
+@dataclass(frozen=True)
+class SchemaProfile:
+    revision: str
+    tables: frozenset
+    legacy: bool = False
+
+
+def _profile(schema_revision=None):
+    """An explicit allowlist; never infer support from a source's missing tables."""
+    current = _revision()
+    chosen = current if schema_revision in (None, "head") else schema_revision
+    _require(isinstance(chosen, str), "backup_schema_unsupported")
+    if chosen == current:
+        return SchemaProfile(current, frozenset(TABLE_NAMES))
+    _require(chosen == LEGACY_REVISION, "backup_schema_unsupported")
+    return SchemaProfile(LEGACY_REVISION, LEGACY_TABLE_NAMES, legacy=True)
 
 
 def _url(database_url, *, restore=False):
@@ -179,7 +199,7 @@ def _json(value):
                       separators=(",", ":"), allow_nan=False).encode("utf-8")
 
 
-def _schema(connection, *, empty=False):
+def _schema(connection, *, empty=False, profile=None):
     schemas = connection.execute(text("SELECT nspname FROM pg_namespace WHERE nspname !~ '^pg_' AND nspname <> 'information_schema'"))
     _require({row[0] for row in schemas} == {"public"}, "backup_schema_invalid")
     inspector = inspect(connection)
@@ -200,21 +220,24 @@ def _schema(connection, *, empty=False):
         JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND NOT t.tgisinternal
     """)).scalar_one()
     _require(not any((unexpected, routines, extra_types, large_objects, extensions, triggers)), "backup_schema_invalid")
-    _require(not names if empty else names == TABLE_NAMES,
+    profile = profile or _profile()
+    _require(not names if empty else names == profile.tables,
              "restore_target_not_empty" if empty else "backup_schema_invalid")
     if empty:
         return None
     metadata = MetaData()
-    metadata.reflect(connection, schema="public", only=sorted(TABLE_NAMES))
+    metadata.reflect(connection, schema="public", only=sorted(profile.tables))
     _require(all(table.primary_key.columns for table in metadata.tables.values()), "backup_schema_invalid")
     versions = list(connection.execute(text("SELECT version_num FROM public.alembic_version")).scalars())
-    _require(versions == [_revision()], "backup_schema_invalid")
+    _require(versions == [profile.revision], "backup_schema_invalid")
+    if profile.legacy:
+        validate_legacy_schema(connection)
     return metadata
 
 
 def _fingerprints(connection, metadata):
     result, total = {}, 0
-    for name in sorted(TABLE_NAMES):
+    for name in sorted(table.name for table in metadata.tables.values()):
         table = metadata.tables[f"public.{name}"]
         statement = select(*sorted(table.c, key=lambda item: item.name)).order_by(*table.primary_key.columns)
         rows = connection.execute(statement.execution_options(stream_results=True)).mappings()
@@ -233,7 +256,8 @@ def _fingerprints(connection, metadata):
     return result
 
 
-def _references(connection):
+def _references(connection, *, profile=None):
+    profile = profile or _profile()
     objects = {}
 
     def add(key, reference, mandatory, size=None, digest=None):
@@ -261,6 +285,8 @@ def _references(connection):
         add(row["object_key"], f"files:{row['id']}", required, size, row["sha256"])
     for row in connection.execute(text("SELECT id,object_key,bytes FROM public.file_variants ORDER BY id").execution_options(stream_results=True)).mappings():
         add(row["object_key"], f"file_variants:{row['id']}", True, row["bytes"])
+    if profile.legacy:
+        return [objects[key] for key in sorted(objects)]
     for row in connection.execute(text("SELECT id,source FROM public.ai_runs WHERE source IS NOT NULL ORDER BY id").execution_options(stream_results=True)).mappings():
         source = row["source"]
         _require(isinstance(source, dict), "backup_schema_invalid")
@@ -279,8 +305,10 @@ def _summary(manifest):
             "missing_optional_objects": sum(item["status"] == "missing" for item in manifest["objects"])}
 
 
-def backup_site(database_url, postgres_container, output, storage, *, maintenance_confirmed=False):
+def backup_site(database_url, postgres_container, output, storage, *, maintenance_confirmed=False,
+                schema_revision=None):
     _require(maintenance_confirmed is True, "backup_maintenance_required")
+    profile = _profile(schema_revision)
     engine = _engine(database_url)
     stage = None
     try:
@@ -298,10 +326,10 @@ def backup_site(database_url, postgres_container, output, storage, *, maintenanc
         with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
             with connection.begin():
                 connection.execute(text("SET TRANSACTION READ ONLY"))
-                metadata = _schema(connection)
+                metadata = _schema(connection, profile=profile)
                 snapshot = connection.execute(text("SELECT pg_export_snapshot()" )).scalar_one()
                 tables = _fingerprints(connection, metadata)
-                references = _references(connection)
+                references = _references(connection, profile=profile)
                 postgres.dump(snapshot, stage / "database.dump", MAX_DUMP_BYTES)
                 dump = {"path": "database.dump", **_hash_file(stage / "database.dump", MAX_DUMP_BYTES)}
                 os.chmod(stage / "database.dump", 0o600)
@@ -330,7 +358,7 @@ def backup_site(database_url, postgres_container, output, storage, *, maintenanc
                                     "status": status, "reason": reason,
                                     **{key: captured.get(key) for key in ("size", "sha256", "version_id", "etag")}})
         manifest = {"format_version": FORMAT_VERSION, "created_at": datetime.now(timezone.utc).isoformat(),
-                    "schema_revision": _revision(), "postgres_major": checked["pg_major"], "scope": SCOPE,
+                    "schema_revision": profile.revision, "postgres_major": checked["pg_major"], "scope": SCOPE,
                     "source_storage": "oss" if isinstance(storage, OSSBackupStorage) else "local",
                     "tables": tables, "objects": objects, "dump": dump}
         encoded = _json(manifest)
@@ -376,13 +404,18 @@ def _load_manifest(root):
     manifest = json.loads(raw, object_pairs_hook=_pairs)
     _require(isinstance(manifest, dict) and set(manifest) == MANIFEST_FIELDS)
     _require(type(manifest["format_version"]) is int and manifest["format_version"] == FORMAT_VERSION)
-    _require(manifest["scope"] == SCOPE and manifest["schema_revision"] == _revision())
+    _require(manifest["scope"] == SCOPE)
+    try:
+        profile = _profile(manifest["schema_revision"])
+    except SiteBackupError:
+        raise SiteBackupError("backup_invalid") from None
+    _require(profile.revision == manifest["schema_revision"])
     _require(manifest["source_storage"] in {"local", "oss"})
     _require(_integer(manifest["postgres_major"], 16, minimum=16))
     _require(isinstance(manifest["created_at"], str) and len(manifest["created_at"]) <= 64)
     _require(datetime.fromisoformat(manifest["created_at"]).tzinfo is not None)
     tables = manifest["tables"]
-    _require(isinstance(tables, dict) and set(tables) == TABLE_NAMES)
+    _require(isinstance(tables, dict) and set(tables) == profile.tables)
     for item in tables.values():
         _require(isinstance(item, dict) and set(item) == {"count", "sha256"}
                  and _integer(item["count"], MAX_ROWS)
@@ -396,6 +429,7 @@ def verify_site_backup(path):
         root = _path(path)
         _require(root.is_dir() and (root / "objects").is_dir())
         manifest, total = _load_manifest(root)
+        profile = _profile(manifest["schema_revision"])
         dump = manifest["dump"]
         _require(isinstance(dump, dict) and set(dump) == {"path", "size", "sha256"}
                  and dump["path"] == "database.dump" and _integer(dump["size"], MAX_DUMP_BYTES, minimum=1)
@@ -415,6 +449,8 @@ def verify_site_backup(path):
             _require(isinstance(refs, list) and 0 < len(refs) <= MAX_ROWS
                      and all(isinstance(ref, str) and len(ref) <= 160 and re.fullmatch(r"(?:files|file_variants|ai_runs):[0-9a-f-]{36}(?::pages:[0-9]+)?", ref) for ref in refs)
                      and len(set(refs)) == len(refs))
+            if profile.legacy:
+                _require(all(re.fullmatch(r"(?:files|file_variants):[0-9a-f-]{36}", ref) for ref in refs))
             _require(all(item[field] is None or isinstance(item[field], str) and 0 < len(item[field]) <= 1024
                          for field in ("version_id", "etag")))
             if item["status"] == "missing":
@@ -497,7 +533,8 @@ def _storage_lock(storage_root, backup_root):
         marker.unlink(missing_ok=True)
 
 
-def _normalize(connection):
+def _normalize(connection, *, profile=None):
+    profile = profile or _profile()
     commands = {
         "sessions": "UPDATE public.sessions SET revoked_at=now() WHERE revoked_at IS NULL",
         "file_tickets": "DELETE FROM public.file_tickets",
@@ -507,11 +544,12 @@ def _normalize(connection):
         "ai_runs": "UPDATE public.ai_runs SET status='interrupted',error_code='site_restore_interrupted',lease_until=NULL,finished_at=now() WHERE status IN ('queued','running')",
         "ai_steps": "UPDATE public.ai_steps SET status='failed',error_code='site_restore_interrupted' WHERE status='running'",
     }
-    return {table: connection.execute(text(statement)).rowcount for table, statement in commands.items()}
+    return {table: connection.execute(text(statement)).rowcount for table, statement in commands.items()
+            if table in profile.tables}
 
 
-def _verify_restored_references(connection, manifest):
-    references = {item["key"]: item for item in _references(connection)}
+def _verify_restored_references(connection, manifest, *, profile=None):
+    references = {item["key"]: item for item in _references(connection, profile=profile)}
     objects = {item["key"]: item for item in manifest["objects"]}
     _require(references.keys() == objects.keys(), "restore_verification_failed")
     for key, reference in references.items():
@@ -529,6 +567,7 @@ def restore_site_backup(path, database_url, postgres_container, storage_root, *,
     attempted = False
     try:
         with _snapshot(path) as (snapshot, manifest):
+            profile = _profile(manifest["schema_revision"])
             postgres = DockerPostgres(engine, postgres_container)
             checked = postgres.check()
             _require(checked["pg_major"] == manifest["postgres_major"], "restore_postgres_version_mismatch")
@@ -536,7 +575,7 @@ def restore_site_backup(path, database_url, postgres_container, storage_root, *,
                 locked = lock.execute(text("SELECT pg_try_advisory_lock(716493812, 214061)" )).scalar_one()
                 _require(locked, "restore_locked")
                 try:
-                    _schema(lock, empty=True)
+                    _schema(lock, empty=True, profile=profile)
                     with _storage_lock(storage_root, path) as root:
                         try:
                             attempted = True
@@ -552,13 +591,13 @@ def restore_site_backup(path, database_url, postgres_container, storage_root, *,
                                     shutil.copyfileobj(original, output, CHUNK_BYTES)
                                 _require(_hash_file(target, MAX_OBJECT_BYTES) == {key: item[key] for key in ("size", "sha256")}, "restore_verification_failed")
                             # Recheck immediately before the external restore transaction.
-                            _schema(lock, empty=True)
+                            _schema(lock, empty=True, profile=profile)
                             postgres.restore(snapshot / "database.dump")
                             with engine.begin() as connection:
-                                metadata = _schema(connection)
+                                metadata = _schema(connection, profile=profile)
                                 _require(_fingerprints(connection, metadata) == manifest["tables"], "restore_verification_failed")
-                                _verify_restored_references(connection, manifest)
-                                normalization = _normalize(connection)
+                                _verify_restored_references(connection, manifest, profile=profile)
+                                normalization = _normalize(connection, profile=profile)
                             return {**_summary(manifest), "original_fingerprints_verified": True,
                                     "normalization": normalization}
                         except BaseException:
@@ -593,6 +632,8 @@ def _main():
     backup.add_argument("--storage-root")
     backup.add_argument("--env-file")
     backup.add_argument("--maintenance-confirmed", action="store_true")
+    backup.add_argument("--schema-revision", default="head", choices=("head", LEGACY_REVISION),
+                        help="Default head; explicitly select the supported legacy source revision")
     verify = commands.add_parser("verify")
     verify.add_argument("path")
     restore = commands.add_parser("restore")
@@ -627,7 +668,8 @@ def _main():
                                **{key: values.get(key.upper()) or default for key, default in defaults.items()})
                 storage = OSSBackupStorage(cfg)
             result = backup_site(_database_url_file(args.database_url_file), args.postgres_container,
-                                 args.output, storage, maintenance_confirmed=args.maintenance_confirmed)
+                                 args.output, storage, maintenance_confirmed=args.maintenance_confirmed,
+                                 schema_revision=args.schema_revision)
         print(json.dumps({"ok": True, **result}, ensure_ascii=False))
         return 0
     except SiteBackupError as error:

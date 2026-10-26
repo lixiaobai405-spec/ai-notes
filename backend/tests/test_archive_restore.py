@@ -6,6 +6,7 @@ Only the uniquely named database created below may be truncated or dropped.
 
 import hashlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -21,6 +22,7 @@ import pytest
 from sqlalchemy import create_engine, event, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
+from PIL import Image
 
 from app.modules.ai import image_context, pdf_context
 from app.modules.ai.models import AiRun, AiSavedNote, AiStep
@@ -31,14 +33,122 @@ from app.modules.notes import service as notes
 from app.modules.notes.models import Folder, Note, NoteVersion
 from app.shared.config import settings
 from app.shared.db import Base, SessionLocal, engine
-from app.shared.models import Job, User
+from app.shared.models import AuthSession, Job, User
 from app.shared.security import verify_password
 from test_exports import account as export_account
+from test_pdf_region import fixture as pdf_region_book
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PASSWORD = "restore-test-only-password"
 TABLES = tuple(model.__tablename__ for model in exports.FIELDS)
+
+
+def test_pdf_region_api_save_export_verify_restore_retains_provenance(
+    client, pdf_region_book, restore_tool, target, monkeypatch, tmp_path,
+):
+    from conftest import mutate
+    from test_pdf_chat import mock, submit
+    note_id, selected = pdf_region_book
+    row = submit(client, note_id, pdf=selected).json()
+    calls = mock(monkeypatch)
+    from app.modules.ai import chat_service
+    assert chat_service.tick()
+    saved = mutate(client, "POST", f"/ai/runs/{row['id']}/save-note", {"title": "PDF region retained"})
+    assert saved.status_code == 201, saved.text
+    saved_id = uuid.UUID(saved.json()["note_id"])
+    # pdf_book is deliberately light. Complete only this export fixture's
+    # original/thumbnail objects so the production archive checks all assets.
+    storage = files.storage()
+    with SessionLocal.begin() as db:
+        owner = db.get(Note, uuid.UUID(note_id)).owner_id
+        auth = db.scalar(select(AuthSession).where(AuthSession.user_id == owner, AuthSession.revoked_at.is_(None)))
+        session_id = auth.id
+        for file in db.scalars(select(File).where(File.owner_id == owner)):
+            if file.mime == "application/pdf":
+                data = b"%PDF-synthetic-region"
+            else:
+                reading = db.scalar(select(FileVariant).where(FileVariant.file_id == file.id, FileVariant.kind == "reading"))
+                data = storage.read(reading.object_key)
+                key = reading.object_key + ".thumbnail"
+                storage.put(key, data)
+                db.add(FileVariant(file_id=file.id, kind="thumbnail", object_key=key, bytes=len(data)))
+            storage.put(file.object_key, data)
+            file.bytes = file.expected_bytes = len(data)
+            file.sha256 = hashlib.sha256(data).hexdigest()
+    path = tmp_path / "saved-api-pdf-region.zip"
+    with exports.create_archive(owner, session_id) as stream, path.open("wb") as output:
+        shutil.copyfileobj(stream, output)
+    verifier = restore_tool._load_verifier()
+    assert verifier.verify_archive(path)["ai_saved_notes"] == 1
+    _restore(restore_tool, path, target)
+    monkeypatch.setattr(settings(), "storage_root", str(target.storage_root))
+    with target.sessions() as db:
+        run = db.get(AiRun, uuid.UUID(row["id"]))
+        provenance = db.scalar(select(AiSavedNote).where(AiSavedNote.note_id == saved_id))
+        assert provenance.source == saved.json()["source"]
+        assert provenance.source["pages"][0]["region"] == selected["region"]
+        assert "选区" in db.get(Note, saved_id).plain_text
+        assert pdf_context.validate(db, owner, run.source)
+        crop = pdf_context.read_region(run.source)[0]
+        with Image.open(io.BytesIO(crop)) as image:
+            assert image.size == (50, 80)
+    assert len(calls) == 1
+
+
+def test_restore_pdf_region_roundtrip_and_offline_verification(
+    restore_tool, export_account, target, tmp_path, monkeypatch,
+):
+    """Add a separate PDF-region case without changing the legacy fixture."""
+    region = {"x": 0.5, "y": 0.0, "width": 0.5, "height": 1.0}
+    with SessionLocal.begin() as db:
+        run = db.get(AiRun, export_account.runs[0])
+        source = json.loads(json.dumps(run.source))
+        source["mode"] = "region"; source["pages"][0]["region"] = region
+        run.source = source
+        saved = db.scalar(select(AiSavedNote).where(AiSavedNote.run_id == run.id))
+        saved.source = {**saved.source, "mode": "region", "pages": [{**saved.source["pages"][0], "region": region}]}
+    path = tmp_path / "pdf-region.zip"
+    with exports.create_archive(export_account.owner, export_account.session) as stream, path.open("wb") as output:
+        shutil.copyfileobj(stream, output)
+    _restore(restore_tool, path, target)
+    monkeypatch.setattr(settings(), "storage_root", str(target.storage_root))
+    with target.sessions() as db:
+        run = db.get(AiRun, export_account.runs[0])
+        saved = db.scalar(select(AiSavedNote).where(AiSavedNote.run_id == run.id))
+        assert run.source["mode"] == saved.source["mode"] == "region"
+        assert run.source["pages"][0]["region"] == saved.source["pages"][0]["region"] == region
+        assert "object_key" not in json.dumps(saved.source)
+        assert pdf_context.validate(db, export_account.owner, run.source)
+
+
+@pytest.mark.parametrize("damage", ["missing", "multiple", "mode", "outside", "bool", "nan"])
+def test_offline_verifier_rejects_conflicting_pdf_region(restore_tool, archive_file, tmp_path, damage):
+    """Repair hashes so failures concern source semantics rather than ZIP damage."""
+    with zipfile.ZipFile(archive_file) as archive:
+        payloads = {name: archive.read(name) for name in archive.namelist()}
+    data = json.loads(payloads["data.json"])
+    source = next(row["source"] for row in data["collections"]["ai_runs"] if row["source"]["kind"] == "pdf")
+    source["mode"] = "region"
+    source["pages"][0]["region"] = {"x": 0.5, "y": 0.0, "width": 0.5, "height": 1.0}
+    if damage == "missing": source["pages"][0].pop("region")
+    elif damage == "multiple": source["pages"].append(dict(source["pages"][0]))
+    elif damage == "mode": source["mode"] = "all"
+    elif damage == "outside": source["pages"][0]["region"]["width"] = 0.9
+    elif damage == "bool": source["pages"][0]["region"]["height"] = True
+    else: source["pages"][0]["region"]["height"] = float("nan")
+    raw = json.dumps(data, ensure_ascii=False).encode()
+    payloads["data.json"] = raw
+    manifest = json.loads(payloads["manifest.json"])
+    for entry in manifest["payloads"]:
+        if entry["path"] == "data.json": entry.update(bytes=len(raw), sha256=hashlib.sha256(raw).hexdigest())
+    payloads["manifest.json"] = json.dumps(manifest).encode()
+    path = tmp_path / (damage + ".zip")
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, raw in payloads.items(): archive.writestr(name, raw)
+    verifier = restore_tool._load_verifier()
+    with pytest.raises(verifier.ValidationError):
+        verifier.verify_archive(path)
 
 
 @pytest.fixture(scope="module")

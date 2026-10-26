@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from starlette.concurrency import run_in_threadpool
 
-from app.modules.ai import chat_service as service, image_context, image_schemas as image_s, pdf_context, source_context, schemas as s
+from app.modules.ai import chat_service as service, image_context, image_schemas as image_s, pdf_context, source_context, text_context, schemas as s
 from app.modules.ai.models import AiConversation, AiRun
 from app.modules.files.models import File, FileVariant, NotePage, PdfImport
 from app.modules.notes.models import Note
@@ -62,13 +62,23 @@ def preview(data: s.PdfInput, db: DB, user: CurrentUser):
 def source_page(run_id: UUID, page_id: UUID, db: DB, user: CurrentUser):
     row = service.get_run(db, user.id, run_id)
     source = row.source
+    if source is None or source_context.is_text(source):
+        raise AppError(404, "source_not_found", "这次回答没有引用此页")
+    note = source_context.validate(db, user.id, source) if source else None
     page = next((page for page in source["pages"] if page["page_id"] == str(page_id)), None) if source else None
     if not page:
         raise AppError(404, "source_not_found", "这次回答没有引用此页")
-    note = source_context.validate(db, user.id, source)
     return s.SourcePageOut(file_id=page["file_id"], title=source["title"], page_number=page["number"],
                            source_revision=source["revision"], source_changed=note.revision != source["revision"],
                            kind="image" if source_context.is_image(source) else "pdf", region=page.get("region"))
+
+
+@router.get("/ai/runs/{run_id}/source-text", response_model=s.TextSourceReadOut)
+def source_text(run_id: UUID, db: DB, user: CurrentUser):
+    row = service.get_run(db, user.id, run_id)
+    if not source_context.is_text(row.source):
+        raise AppError(404, "source_not_found", "这次回答没有引用文字选段")
+    return text_context.read(db, user.id, row.source)
 
 
 @router.get("/ai/conversations", response_model=list[s.ConversationOut])
@@ -110,6 +120,7 @@ def cancel(run_id: UUID, db: DB, user: CurrentUser):
     row = db.scalar(select(AiRun).where(AiRun.id == run_id, AiRun.owner_id == user.id).with_for_update())
     if not row:
         raise AppError(404, "run_not_found", "对话运行不存在")
+    service.readable_source(row.source)
     if row.status in service.ACTIVE:
         row.status, row.finished_at, row.lease_until = "cancelled", utcnow(), None
         db.commit()

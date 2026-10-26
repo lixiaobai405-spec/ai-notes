@@ -1003,6 +1003,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/runs/{run_id}/source-text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Source Text */
+        get: operations["source_text_api_v1_ai_runs__run_id__source_text_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ai/conversations": {
         parameters: {
             query?: never;
@@ -1939,9 +1956,10 @@ export interface components {
              * Mode
              * @enum {string}
              */
-            mode: "pages" | "all";
+            mode: "pages" | "all" | "region";
             /** Page Numbers */
             page_numbers?: number[];
+            region?: components["schemas"]["ImageRegion"] | null;
         };
         /** PdfNotebookDetail */
         PdfNotebookDetail: {
@@ -1982,18 +2000,13 @@ export interface components {
             page_id: string;
             /** Number */
             number: number;
-            /** Bytes */
-            bytes: number;
-        };
-        /** PdfPageRef */
-        PdfPageRef: {
             /**
-             * Page Id
+             * File Id
              * Format: uuid
              */
-            page_id: string;
-            /** Number */
-            number: number;
+            file_id: string;
+            /** Bytes */
+            bytes: number;
         };
         /** PdfPreviewOut */
         PdfPreviewOut: {
@@ -2002,6 +2015,14 @@ export interface components {
             batches: number[][];
             /** Planned Calls */
             planned_calls: number;
+            /** Width */
+            width?: number | null;
+            /** Height */
+            height?: number | null;
+            /** Crop Width */
+            crop_width?: number | null;
+            /** Crop Height */
+            crop_height?: number | null;
         };
         /** PdfProgress */
         PdfProgress: {
@@ -2051,9 +2072,20 @@ export interface components {
              * Mode
              * @enum {string}
              */
-            mode: "pages" | "all";
+            mode: "pages" | "all" | "region";
             /** Pages */
-            pages: components["schemas"]["PdfPageRef"][];
+            pages: components["schemas"]["PdfSourcePageRef"][];
+        };
+        /** PdfSourcePageRef */
+        PdfSourcePageRef: {
+            /**
+             * Page Id
+             * Format: uuid
+             */
+            page_id: string;
+            /** Number */
+            number: number;
+            region?: components["schemas"]["ImageRegion"] | null;
         };
         /** RegisterIn */
         RegisterIn: {
@@ -2114,6 +2146,7 @@ export interface components {
             prompt: string;
             pdf?: components["schemas"]["PdfInput"] | null;
             image?: components["schemas"]["ImageInput"] | null;
+            text?: components["schemas"]["TextInput"] | null;
         };
         /** RunOut */
         RunOut: {
@@ -2157,7 +2190,7 @@ export interface components {
             /** Finished At */
             finished_at: string | null;
             /** Source */
-            source?: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | null;
+            source?: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | components["schemas"]["TextSourceOut"] | null;
             progress?: components["schemas"]["PdfProgress"] | null;
             readonly formatted_answer: components["schemas"]["FormattedAnswer"] | null;
         };
@@ -2192,7 +2225,7 @@ export interface components {
              */
             saved_at: string;
             /** Source */
-            source: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | null;
+            source: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | components["schemas"]["TextSourceOut"] | null;
             /** Cited Page Numbers */
             cited_page_numbers: number[];
         };
@@ -2220,7 +2253,7 @@ export interface components {
              */
             saved_at: string;
             /** Source */
-            source: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | null;
+            source: components["schemas"]["PdfSourceOut"] | components["schemas"]["ImageSourceOut"] | components["schemas"]["TextSourceOut"] | null;
             /** Cited Page Numbers */
             cited_page_numbers: number[];
             /** Model */
@@ -2295,6 +2328,53 @@ export interface components {
             revision: number;
             /** Name */
             name?: string | null;
+        };
+        /** TextInput */
+        TextInput: {
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+            /** Revision */
+            revision: number;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Quote */
+            quote: string;
+        };
+        /** TextSourceOut */
+        TextSourceOut: {
+            /**
+             * Note Id
+             * Format: uuid
+             */
+            note_id: string;
+            /** Revision */
+            revision: number;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Quote */
+            quote: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "text";
+            /** Title */
+            title: string;
+        };
+        /** TextSourceReadOut */
+        TextSourceReadOut: {
+            source: components["schemas"]["TextSourceOut"];
+            /** Text */
+            text: string;
+            /** Source Changed */
+            source_changed: boolean;
         };
         /** TicketOut */
         TicketOut: {
@@ -9160,6 +9240,109 @@ export interface operations {
             };
         };
     };
+    source_text_api_v1_ai_runs__run_id__source_text_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TextSourceReadOut"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Unprocessable Content */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorOut"];
+                };
+            };
+        };
+    };
     list_conversations_api_v1_ai_conversations_get: {
         parameters: {
             query?: never;
@@ -10234,7 +10417,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorOut"];
                 };
             };
-            /** @description Request Entity Too Large */
+            /** @description Content Too Large */
             413: {
                 headers: {
                     [name: string]: unknown;

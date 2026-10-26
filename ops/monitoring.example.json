@@ -1,0 +1,27 @@
+{
+  "database_url_env": "AI_NOTES_MONITOR_DATABASE_URL",
+  "state_root": "/var/lib/ai-notes/monitoring",
+  "compose_project": "ai-notes-server",
+  "services": ["db", "api", "worker", "web"],
+  "disks": {"system": "/", "data": "/var/lib/docker", "backup": "/opt/ai-notes/.backups/scheduled"},
+  "window_minutes": 60,
+  "sample_timeout_seconds": 30,
+  "stale_after_seconds": 180,
+  "thresholds": [
+    {"metric": "host.memory.used_percent", "warning": 85, "critical": 95},
+    {"metric": "host.disks.system.used_percent", "warning": 85, "critical": 95},
+    {"metric": "host.disks.data.used_percent", "warning": 85, "critical": 95},
+    {"metric": "host.disks.backup.used_percent", "warning": 85, "critical": 95},
+    {"metric": "database.connections.used_percent", "warning": 80, "critical": 95},
+    {"metric": "database.jobs.oldest_ready_seconds", "warning": 300, "critical": 900},
+    {"metric": "database.jobs.expired_leases", "warning": 1, "critical": 3},
+    {"metric": "database.jobs.failed_created_window", "warning": 1, "critical": 10},
+    {"metric": "database.ai.oldest_queued_seconds", "warning": 300, "critical": 900},
+    {"metric": "database.ai.expired_leases", "warning": 1, "critical": 3},
+    {"metric": "database.ai.errors_finished_window", "warning": 1, "critical": 10},
+    {"metric": "database.uploads.expired_created_window", "warning": 10, "critical": 50},
+    {"metric": "database.uploads.rejected_created_window", "warning": 1, "critical": 10},
+    {"metric": "database.uploads.processing_failed_created_window", "warning": 1, "critical": 10},
+    {"metric": "database.uploads.pdf_rejected_created_window", "warning": 1, "critical": 10}
+  ]
+}
