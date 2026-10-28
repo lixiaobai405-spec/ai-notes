@@ -30,16 +30,36 @@ jobs:
               raise SystemExit("Set the ACR_REGISTRY repository variable to the public Hangzhou personal instance hostname")
           PY
           printf 'RELEASE_TAG=sha-%s-%s-%s\n' "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_ENV"
-      - name: Build the application images
-        run: |
-          docker build --platform linux/amd64 \
-            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --tag "$ACR_REGISTRY/$ACR_NAMESPACE/backend:$RELEASE_TAG" ./backend
-          docker build --platform linux/amd64 \
-            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
-            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
-            --tag "$ACR_REGISTRY/$ACR_NAMESPACE/frontend:$RELEASE_TAG" ./frontend
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker-container
+      - name: Build the backend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/backend:${{ env.RELEASE_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=ai-notes-backend-linux-amd64,version=2
+          cache-to: type=gha,scope=ai-notes-backend-linux-amd64,mode=max,version=2
+      - name: Build the frontend image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ${{ env.ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/frontend:${{ env.RELEASE_TAG }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=ai-notes-frontend-linux-amd64,version=2
+          cache-to: type=gha,scope=ai-notes-frontend-linux-amd64,mode=max,version=2
       - name: Prepare the official PostgreSQL image
         run: |
           docker pull --platform linux/amd64 postgres:16.8-alpine

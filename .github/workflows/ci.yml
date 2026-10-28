@@ -31,6 +31,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.lock
+            backend/requirements-dev.lock
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -55,10 +59,32 @@ jobs:
       - run: python -m unittest discover -s tests -p "test_*.py"
       - run: git diff --exit-code -- backend/openapi.json
       - run: cp .env.example .env && docker compose config --quiet
-      - run: docker compose build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+        with:
+          driver: docker-container
+      # PR builds may restore main's layers; only trusted main runs export them.
+      - name: Build the backend verification image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ai-notes-https-python:latest
+          cache-from: type=gha,scope=ai-notes-backend-linux-amd64,version=2
+          cache-to: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'type=gha,scope=ai-notes-backend-linux-amd64,mode=max,version=2' || '' }}
+      - name: Build the frontend verification image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./frontend
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ai-notes-https-validation:latest
+          cache-from: type=gha,scope=ai-notes-frontend-linux-amd64,version=2
+          cache-to: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'type=gha,scope=ai-notes-frontend-linux-amd64,mode=max,version=2' || '' }}
       - name: Verify isolated IP HTTPS
         run: |
           python -m unittest discover -s tests/https_fixtures -p "test_*.py"
-          docker build --tag ai-notes-https-validation ./frontend
-          docker build --tag ai-notes-https-python ./backend
           python scripts/verify_https_isolated.py --frontend-image ai-notes-https-validation --python-image ai-notes-https-python

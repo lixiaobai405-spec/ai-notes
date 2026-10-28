@@ -1,0 +1,22 @@
+# Dockerfile-specific root-context allowlist. Do not replace with broad exceptions.
+**
+!scripts/
+!scripts/ops_wheelhouse.py
+!backend/
+!backend/requirements.lock
+!ops/
+!ops/wheelhouse/
+!ops/wheelhouse/bootstrap.lock
+!ops/wheelhouse/Dockerfile
+!ops/wheelhouse/Dockerfile.dockerignore
+# Defense in depth: these never belong in this context, including nested copies.
+**/.env
+**/.env.*
+**/.local
+**/.local/**
+**/.backups
+**/.backups/**
+**/AGENTS.md
+**/*.pem
+**/*.key
+**/credentials*

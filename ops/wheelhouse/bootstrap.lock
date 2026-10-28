@@ -1,0 +1,2 @@
+# Bootstrap only; deliberately independent of the application dependency lock.
+pip==24.0

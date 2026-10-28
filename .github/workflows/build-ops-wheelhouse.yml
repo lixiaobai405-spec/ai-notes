@@ -1,0 +1,51 @@
+name: Build offline operations wheelhouses
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  wheelhouse:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [monitoring, backup]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - name: Export Linux wheels
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ops/wheelhouse/Dockerfile
+          target: artifact
+          platforms: linux/amd64
+          push: false
+          build-args: |
+            PROFILE=${{ matrix.profile }}
+          cache-from: type=gha,scope=ai-notes-ops-${{ matrix.profile }}-linux-amd64,version=2
+          cache-to: type=gha,mode=max,scope=ai-notes-ops-${{ matrix.profile }}-linux-amd64,version=2
+          outputs: type=local,dest=${{ runner.temp }}/ops-wheelhouse-${{ matrix.profile }}
+      - name: Verify artifact before installation
+        env:
+          BUNDLE: ${{ runner.temp }}/ops-wheelhouse-${{ matrix.profile }}
+        run: python3 scripts/ops_wheelhouse.py verify --bundle "$BUNDLE"
+      - name: Install and smoke test without a network
+        env:
+          BUNDLE: ${{ runner.temp }}/ops-wheelhouse-${{ matrix.profile }}
+        run: |
+          docker run --rm --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --tmpfs /tmp:rw,exec \
+            --mount "type=bind,source=$BUNDLE,target=/bundle,readonly" \
+            python:3.12-slim-bookworm \
+            python /bundle/install.py install --bundle /bundle --venv /tmp/ops-test
+      - name: Upload verified offline artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ops-wheelhouse-${{ matrix.profile }}-linux-amd64-cpython312-${{ github.sha }}
+          path: ${{ runner.temp }}/ops-wheelhouse-${{ matrix.profile }}
+          if-no-files-found: error
+          retention-days: 14
