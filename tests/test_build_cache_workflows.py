@@ -31,16 +31,26 @@ def load_yaml(path):
     return yaml.load((ROOT / path).read_text(encoding="utf-8"), Loader=WorkflowLoader)
 
 
-def evaluate_expression(expression, *, ref, event):
+def evaluate_expression(expression, *, ref, event, needs=None, cancelled=False):
     """Evaluate the workflow's actual boolean/string expression, never Python eval."""
     expression = expression.removeprefix("${{").removesuffix("}}").strip()
     expression = expression.replace("github.ref", repr(ref))
     expression = expression.replace("github.event_name", repr(event))
-    tree = ast.parse(expression.replace("&&", " and ").replace("||", " or "), mode="eval")
+    context = needs or {}
+    expression = re.sub(
+        r"needs\.([A-Za-z0-9_-]+)\.(result|outputs\.[A-Za-z0-9_]+)",
+        lambda match: repr(context.get(match[1], {}).get(match[2], "")), expression,
+    )
+    expression = expression.replace("always()", "True").replace("cancelled()", repr(cancelled))
+    expression = re.sub(r"!(?!=)", " not ", expression)
+    translated = expression.replace("&&", " and ").replace("||", " or ").strip()
+    tree = ast.parse("(" + translated + "\n)", mode="eval")
 
     def visit(node):
         if isinstance(node, ast.Constant) and isinstance(node.value, (str, bool)):
             return node.value
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+            return not visit(node.operand)
         if isinstance(node, ast.BoolOp):
             result = visit(node.values[0])
             for value in node.values[1:]:
@@ -211,18 +221,26 @@ class BuildCacheWorkflowTests(unittest.TestCase):
         self.assertTrue(all((ROOT / lockfile).is_file() for lockfile in python_locks))
         self.assertEqual((node["with"]["cache"], node["with"]["cache-dependency-path"]), ("npm", "frontend/package-lock.json"))
 
-    def test_publish_retains_main_only_reusable_verification_gate(self):
+    def test_publish_preserves_main_only_selection_and_full_ci_fallback(self):
         self.assertEqual(set(self.publish["on"]), {"workflow_dispatch"})
         self.assertTrue({"push", "pull_request", "workflow_call"}.issubset(self.ci["on"]))
         self.assertNotIn("pull_request_target", self.ci["on"])
         verify = self.publish["jobs"]["verify"]
         self.assertEqual(verify["uses"], "./.github/workflows/ci.yml")
         self.assertNotIn("secrets", verify)
+        self.assertEqual(verify["needs"], "select-ci")
+        select = self.publish["jobs"]["select-ci"]
         for ref in ("refs/heads/main", "refs/heads/feature", "refs/tags/main", "refs/pull/12/merge"):
-            self.assertEqual(bool(evaluate_expression(verify["if"], ref=ref, event="workflow_dispatch")), ref == "refs/heads/main")
+            for event in ("workflow_dispatch", "push", "pull_request"):
+                main_dispatch = ref == "refs/heads/main" and event == "workflow_dispatch"
+                self.assertEqual(bool(evaluate_expression(select["if"], ref=ref, event=event)), main_dispatch)
+                for result in ("success", "failure", "cancelled", "skipped"):
+                    for reuse in ("true", "false", "", "unexpected"):
+                        needs = {"select-ci": {"result": result, "outputs.reuse": reuse}}
+                        actual = evaluate_expression(verify["if"], ref=ref, event=event, needs=needs)
+                        self.assertEqual(bool(actual), main_dispatch and result == "success" and reuse == "false")
         publish = self.publish["jobs"]["publish"]
-        self.assertEqual(publish["needs"], "verify")
-        self.assertNotIn("if", publish)  # The default success() must not bypass verify.
+        self.assertEqual(set(publish["needs"]), {"select-ci", "verify"})
         self.assertEqual(publish["runs-on"], "ubuntu-24.04")
         self.assertFalse(self.publish["concurrency"]["cancel-in-progress"])
         for workflow in (self.ci, self.publish):
@@ -231,6 +249,58 @@ class BuildCacheWorkflowTests(unittest.TestCase):
             for job in workflow["jobs"].values():
                 for checkout in action_steps(job, "actions/checkout") if "steps" in job else []:
                     self.assertIs(checkout["with"]["persist-credentials"], False)
+
+    def test_publish_actual_condition_rejects_every_unverified_dependency_path(self):
+        expression = self.publish["jobs"]["publish"]["if"]
+        self.assertIn("always()", expression)  # Required when the valid reuse path skips verify.
+        for select_result in ("success", "failure", "cancelled", "skipped"):
+            for verify_result in ("success", "failure", "cancelled", "skipped"):
+                for reuse in ("true", "false", "", "unexpected"):
+                    for cancelled in (False, True):
+                        for ref, event in (("refs/heads/main", "workflow_dispatch"),
+                                           ("refs/heads/other", "workflow_dispatch"),
+                                           ("refs/tags/main", "workflow_dispatch"),
+                                           ("refs/heads/main", "push")):
+                            needs = {"select-ci": {"result": select_result, "outputs.reuse": reuse},
+                                     "verify": {"result": verify_result}}
+                            expected = (not cancelled and ref == "refs/heads/main" and event == "workflow_dispatch"
+                                        and select_result == "success" and (
+                                            reuse == "true" and verify_result == "skipped"
+                                            or reuse == "false" and verify_result == "success"))
+                            with self.subTest(select=select_result, verify=verify_result, reuse=reuse,
+                                              cancelled=cancelled, ref=ref, event=event):
+                                self.assertEqual(bool(evaluate_expression(expression, ref=ref, event=event,
+                                                                          needs=needs, cancelled=cancelled)), expected)
+
+    def test_reuse_lookup_and_revalidation_have_read_only_tokens_and_pinned_source(self):
+        jobs = self.publish["jobs"]
+        self.assertEqual(jobs["select-ci"]["permissions"], {"contents": "read", "actions": "read"})
+        self.assertEqual(jobs["publish"]["permissions"], {"contents": "read", "actions": "read"})
+        self.assertNotIn("secrets", jobs["verify"])
+        self.assertEqual(set(jobs["select-ci"]["outputs"]), {"reuse", "run_id", "attempt"})
+        for job in (jobs["select-ci"], jobs["publish"]):
+            checkout, = action_steps(job, "actions/checkout")
+            self.assertEqual(checkout["with"]["ref"], "${{ github.sha }}")
+        select_index, select, _ = self.find_command(jobs["select-ci"], ["python3", "scripts/ci_reuse_gate.py", "lookup"])
+        self.assertEqual(select["id"], "evidence")
+        self.assertEqual(select["env"], {"GH_TOKEN": "${{ github.token }}"})
+        self.assertNotIn("continue-on-error", select)
+        job = jobs["publish"]
+        check_index, check, command = self.find_command(job, ["python3", "scripts/ci_reuse_gate.py", "require"])
+        login_index, = [i for i, step in enumerate(job["steps"]) if "secrets.ACR_PASSWORD" in str(step)]
+        self.assertLess(check_index, login_index)
+        for build in action_steps(job, "docker/build-push-action"):
+            self.assertLess(job["steps"].index(build), check_index)
+        self.assertIn('git rev-parse HEAD', str(job["steps"][:check_index]))
+        self.assertIn('"$GITHUB_SHA"', str(job["steps"][:check_index]))
+        self.assertEqual(check["env"]["EXPECTED_CI_RUN_ID"], "${{ needs.select-ci.outputs.run_id }}")
+        self.assertEqual(check["env"]["EXPECTED_CI_ATTEMPT"], "${{ needs.select-ci.outputs.attempt }}")
+        self.assertIn("--run-id", command)
+        self.assertIn("--attempt", command)
+        self.assertNotIn("continue-on-error", check)
+        for reuse in ("true", "false", "", "unexpected"):
+            self.assertEqual(bool(evaluate_expression(check["if"], ref="refs/heads/main", event="workflow_dispatch",
+                                                     needs={"select-ci": {"outputs.reuse": reuse}})), reuse == "true")
 
     def test_registry_secrets_remain_scoped_to_login_after_builds(self):
         job = self.publish["jobs"]["publish"]

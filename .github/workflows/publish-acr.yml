@@ -7,20 +7,59 @@ concurrency:
   group: publish-acr-development
   cancel-in-progress: false
 jobs:
+  select-ci:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      reuse: ${{ steps.evidence.outputs.reuse }}
+      run_id: ${{ steps.evidence.outputs.run_id }}
+      attempt: ${{ steps.evidence.outputs.attempt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Select trusted CI evidence for this exact commit
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          python3 scripts/ci_reuse_gate.py lookup
+          --repository "$GITHUB_REPOSITORY"
+          --repository-id "$GITHUB_REPOSITORY_ID"
+          --sha "$GITHUB_SHA"
   verify:
-    if: github.ref == 'refs/heads/main'
+    needs: select-ci
+    if: >-
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      needs.select-ci.result == 'success' && needs.select-ci.outputs.reuse == 'false'
     uses: ./.github/workflows/ci.yml
   publish:
-    needs: verify
+    needs: [select-ci, verify]
+    if: >-
+      ${{ always() && !cancelled() && github.event_name == 'workflow_dispatch' &&
+          github.ref == 'refs/heads/main' && needs.select-ci.result == 'success' &&
+          ((needs.select-ci.outputs.reuse == 'true' && needs.verify.result == 'skipped') ||
+           (needs.select-ci.outputs.reuse == 'false' && needs.verify.result == 'success')) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
     env:
       ACR_REGISTRY: ${{ vars.ACR_REGISTRY }}
       ACR_NAMESPACE: ai-notes
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Verify the checked-out release commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - name: Validate destination and choose a release tag
         run: |
           python3 - <<'PY'
@@ -66,6 +105,27 @@ jobs:
           docker tag postgres:16.8-alpine "$ACR_REGISTRY/$ACR_NAMESPACE/postgres:$RELEASE_TAG"
           printf 'PostgreSQL upstream: ' >> "$GITHUB_STEP_SUMMARY"
           docker image inspect postgres:16.8-alpine --format '{{index .RepoDigests 0}}' >> "$GITHUB_STEP_SUMMARY"
+      - name: Revalidate reused CI evidence before registry login
+        if: needs.select-ci.outputs.reuse == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_CI_RUN_ID: ${{ needs.select-ci.outputs.run_id }}
+          EXPECTED_CI_ATTEMPT: ${{ needs.select-ci.outputs.attempt }}
+        run: >-
+          python3 scripts/ci_reuse_gate.py require
+          --repository "$GITHUB_REPOSITORY"
+          --repository-id "$GITHUB_REPOSITORY_ID"
+          --sha "$GITHUB_SHA"
+          --run-id "$EXPECTED_CI_RUN_ID"
+          --attempt "$EXPECTED_CI_ATTEMPT"
+      - name: Record successful full CI fallback
+        if: needs.select-ci.outputs.reuse == 'false'
+        run: |
+          {
+            printf '\n## CI authorization\n\n'
+            printf 'Full CI succeeded in this release run: %s/%s/actions/runs/%s\n\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID"
+            printf 'Verified commit: `%s`\n' "$GITHUB_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Authenticate to ACR
         env:
           ACR_USERNAME: ${{ secrets.ACR_USERNAME }}
