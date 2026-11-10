@@ -1,4 +1,5 @@
 import {ModelPicker} from './ModelPicker'
+import { ChevronDown, MessageSquare, Paperclip, Plus, Send } from 'lucide-react'
 import {defaultModel,modelReady,modelLabel,type ModelChoice} from './model-catalog'
 import {ToolScopePicker,emptyToolDraft,type ToolDraft} from './ToolScopePicker'
 import {ToolHistory} from './ToolHistory'
@@ -9,6 +10,7 @@ import { api, date, ApiError, type AiCatalog } from '../../api'
 import { active, readStream, type Conversation, type Detail, type Run } from './chat-stream'
 import { CitedAnswer, PdfPicker, PdfRunScope, SourceReader, emptyChoice, type PdfChoice, type PdfBook, type PdfDetail, type PdfInput, type PdfPreview } from './PdfSources'
 import { buildPdfInput, pdfReady as pdfSelectionReady, restorePdfChoice, type PdfPayload } from './pdf-choice'
+import { pageRange } from './pdf-pages'
 import { SaveAnswer, type SavedAnswer } from './SaveAnswer'
 import { ImagePicker, emptyImageChoice, type ImageChoice, type ImageBook, type ImageDetail, type ImageInput, type ImagePreview } from './ImageSources'
 import { TextSelectionScope, TextSourceReader, type TextSource } from './TextSources'
@@ -32,6 +34,14 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
   const storageKey=`ai-notes:chat:${owner}`
   const [selected,setSelected]=useState(()=>{try{return sessionStorage.getItem(storageKey)||''}catch{return ''}})
   const [prompt,setPrompt]=useState('')
+  const [historyOpen,setHistoryOpen]=useState(()=>typeof window==='undefined'||typeof window.matchMedia!=='function'?true:window.matchMedia('(min-width:1001px)').matches)
+  useEffect(()=>{
+    if(typeof window==='undefined'||typeof window.matchMedia!=='function')return
+    const viewport=window.matchMedia('(min-width:1001px)')
+    const update=(event:MediaQueryListEvent)=>setHistoryOpen(event.matches)
+    viewport.addEventListener('change',update)
+    return()=>viewport.removeEventListener('change',update)
+  },[])
   const [choice,setChoice]=useState<ModelChoice>(defaultModel)
   const {provider,model}=choice
   const [toolDraft,setToolDraft]=useState<ToolDraft>(emptyToolDraft)
@@ -40,6 +50,7 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
   const [readVersion,setReadVersion]=useState(0)
   const [pdfChoice,setPdfChoice]=useState<PdfChoice>(emptyChoice)
   const [material,setMaterial]=useState<'text'|'pdf'|'image'|'selection'>('text')
+  const [materialOpen,setMaterialOpen]=useState(false)
   const [textChoice,setTextChoice]=useState<AskTextSelection|null>(null)
   const [textSourceRun,setTextSourceRun]=useState('')
   const initialRequested=useRef('')
@@ -72,6 +83,11 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
   const text=material==='selection'?textChoice?.input||null:null
   const textReady=material!=='selection'||!!text
   const textSource:TextSource|null=text&&textChoice?{kind:'text',...text,title:textChoice.title}:null
+  const pdfError=pdfInputError||((book.error||preview.error)?message(book.error||preview.error):'')
+  const imageError=imageBook.error||imagePreview.error?message(imageBook.error||imagePreview.error):''
+  const pdfPreview=pdfIsReady?preview.data:undefined
+  const pdfTitle=books.data?.find(item=>item.id===pdfChoice.noteId)?.title||book.data?.title
+  const imageTitle=imageBooks.data?.find(item=>item.id===imageChoice.noteId)?.title||imageBook.data?.title
   const detailKey=['ai-conversation',owner,selected]
   const detail=useQuery({queryKey:detailKey,queryFn:()=>api<Detail>('/ai/conversations/'+selected),enabled:!!selected})
   const savedNotes=useQuery({queryKey:['ai-saved-notes',owner,selected],queryFn:()=>api<SavedAnswer[]>(`/ai/conversations/${selected}/saved-notes`),enabled:!!selected,retry:false})
@@ -93,7 +109,7 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
     restoredSource.current=''
     setToolDraft(emptyToolDraft)
     setSelected(id);setPrompt('');pending.current=null;setStreamError('')
-    setPdfChoice(emptyChoice);setImageChoice(emptyImageChoice);setTextChoice(null);setTextSourceRun('');setMaterial('text');setLoadedImage('');setLoadedPdfImage('');setSourceView(null)
+    setPdfChoice(emptyChoice);setImageChoice(emptyImageChoice);setTextChoice(null);setTextSourceRun('');setMaterial('text');setMaterialOpen(false);setLoadedImage('');setLoadedPdfImage('');setSourceView(null)
     try{sessionStorage.setItem(storageKey,id)}catch{/* Browser storage is optional. */}
   }
   useEffect(()=>{
@@ -187,19 +203,21 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
   function changeMaterial(value:'text'|'pdf'|'image'|'selection'){setMaterial(value);setPdfChoice(emptyChoice);setImageChoice(emptyImageChoice);setLoadedImage('');setLoadedPdfImage('');pending.current=null;}
   const error=detail.error||conversations.error||catalog.error||create.error||send.error||cancel.error||(material==='pdf'?books.error:material==='image'?imageBooks.error:null)
   return <div className="chat-layout">
-    <aside className="panel chat-history"><button className="primary full" disabled={create.isPending||send.isPending} onClick={()=>create.mutate(undefined)}>新建对话</button><h3>我的对话</h3>
+    <aside className="chat-history" aria-label="会话历史"><button type="button" className="secondary full chat-new-conversation" disabled={create.isPending||send.isPending} onClick={()=>create.mutate(undefined)}><Plus size={17} aria-hidden="true"/>新建对话</button>
+      <details className="chat-history-list" open={historyOpen} onToggle={event=>setHistoryOpen(event.currentTarget.open)}><summary><span>我的对话</span><span className="chat-history-count">{conversations.data?.length||0}</span><ChevronDown size={16} aria-hidden="true"/></summary><nav aria-label="AI 对话历史">
       {conversations.isPending?<p className="muted">正在读取…</p>:null}
-      {conversations.data?.map(row=><button className={'chat-history-item '+(row.id===selected?'selected':'')} key={row.id} disabled={send.isPending||create.isPending} onClick={()=>choose(row.id)}><strong>{row.title}</strong><small>{date(row.created_at)}</small></button>)}
+      {conversations.data?.map(row=><button type="button" className={'chat-history-item '+(row.id===selected?'selected':'')} aria-current={row.id===selected?'page':undefined} key={row.id} disabled={send.isPending||create.isPending} onClick={()=>choose(row.id)}><strong>{row.title}</strong><small>{date(row.created_at)}</small></button>)}
       {!conversations.data?.length?<p className="muted">新建一段对话，开始提问。</p>:null}
+      </nav></details>
     </aside>
-    <section className="panel chat-main"><div className="panel-heading"><div><h3>{detail.data?.title||'和 AI 一起理解'}</h3><p className="muted">共享模型 · 历史仅自己可见 · 文字、PDF 与图片局部提问</p></div></div>
+    <section className="panel chat-main"><div className="panel-heading chat-thread-heading"><div><h3>{detail.data?.title||'和 AI 一起理解'}</h3><p className="muted">共享模型 · 历史仅自己可见 · 文字、PDF 与图片局部提问</p></div></div>
       {error?<div className="error" role="alert">{message(error)}</div>:null}
       {initialTextSelection&&create.isError?<button type="button" className="secondary" onClick={()=>create.mutate(initialTextSelection)}>重试创建选段对话</button>:null}
       {initialTextSelection&&create.isPending?<p role="status">正在为所选原文创建对话…</p>:null}
       {catalog.data&&!catalog.data.platform_enabled?<p className="error">共享模型服务尚未配置，请联系管理员。</p>:null}
       {selected&&detail.isPending?<p>正在打开对话…</p>:null}
       {savedNotes.error?<div className="error" role="alert">无法核对已保存的笔记：{message(savedNotes.error)}<button type="button" className="text-button" onClick={()=>void savedNotes.refetch()}>重新核对保存状态</button></div>:null}
-      {!selected?<div className="empty">点击“新建对话”，无需填写个人 API Key。</div>:null}
+      {!selected?<div className="chat-start"><MessageSquare size={28} strokeWidth={1.5} aria-hidden="true"/><strong>从一个问题开始</strong><p>点击“新建对话”，再输入问题或选择要引用的资料。</p></div>:null}
       <div className="chat-messages" aria-label="对话记录">{detail.data?.runs.map(run=><article className="chat-turn" key={run.id}>
         <div className="chat-question"><small>你</small><p>{run.prompt}</p></div>
         {run.source?.kind==='text'?<TextSelectionScope source={run.source} onOpen={()=>openTextSource(run.id)}/>:<PdfRunScope run={run} onOpen={openSource}/>}
@@ -214,16 +232,42 @@ export default function AiChat({owner,onOpenNote,initialTextSelection,onTextSele
         </div></article>)}</div>
       {streamError?<div className="error" role="alert">{streamError}<button className="text-button" onClick={()=>{detail.refetch();setReadVersion(v=>v+1)}}>重新读取</button></div>:null}
       {selected?<form className="chat-composer" onSubmit={submit}>
-        <label className="material-choice">资料类型<select aria-label="资料类型" value={material} disabled={create.isPending||busy||send.isPending} onChange={event=>changeMaterial(event.target.value as typeof material)}><option value="text">仅文字</option>{textChoice?<option value="selection">富文本选段</option>:null}<option value="pdf">PDF 选页 / 整本 / 单页框选</option><option value="image">普通图片 / 框选局部</option></select></label>
-        {textSource?<><TextSelectionScope source={textSource}/><p className="muted">本次仅发送上述原文和本对话历史。已成功引用的选段可继续按原版本提问；需要使用修改后的原文或更换选段，请回到文字笔记重新选择。</p></>:material==='text'?<p className="muted">如需引用笔记原文，请到“我的笔记”打开已保存的文字笔记，选中文字后点击“就选段提问”。</p>:null}
-        {material==='pdf'?<PdfPicker choice={pdfChoice} onChange={choice=>{setPdfChoice(choice);}} books={books.data||[]} book={book.data} preview={pdfIsReady?preview.data:undefined} loading={!!pdfChoice.noteId&&(book.isFetching||!!pdf&&preview.isFetching)} error={pdfInputError||((book.error||preview.error)?message(book.error||preview.error):'')} disabled={create.isPending||busy||send.isPending} onReady={setLoadedPdfImage} loadedImage={loadedPdfImage}/>:null}
-        {material==='image'?<ImagePicker choice={imageChoice} onChange={choice=>{setImageChoice(choice)}} books={imageBooks.data||[]} book={imageBook.data} preview={imagePreview.data} loading={!!imageChoice.noteId&&(imageBook.isPending||!!image&&imagePreview.isFetching)} error={(imageBook.error||imagePreview.error)?message(imageBook.error||imagePreview.error):''} disabled={create.isPending||busy||send.isPending} onReady={setLoadedImage}/>:null}
-        <label>提问<textarea value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={8000} rows={4} placeholder="输入问题，例如：解释所选内容中的公式，并标明来源" disabled={create.isPending||busy||send.isPending||detail.isError}/></label>
-        <ToolScopePicker owner={owner} contextKey={toolContext} value={toolDraft} onChange={setToolDraft} disabled={create.isPending||busy||send.isPending}/>
+        <label className="chat-prompt">提问<textarea value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={8000} rows={3} placeholder="输入你的问题" disabled={create.isPending||busy||send.isPending||detail.isError}/></label>
+        <details className="chat-materials" open={materialOpen} onToggle={event=>setMaterialOpen(event.currentTarget.open)}>
+          <summary><Paperclip size={16} aria-hidden="true"/>{material==='text'?'添加资料':'更换资料'}<ChevronDown size={14} aria-hidden="true"/></summary>
+          <div className="chat-material-options">
+            <label className="material-choice">资料类型<select aria-label="资料类型" value={material} disabled={create.isPending||busy||send.isPending} onChange={event=>changeMaterial(event.target.value as typeof material)}>
+              <option value="text">仅文字</option>
+              {textChoice?<option value="selection">笔记原文选段</option>:null}
+              <option value="pdf">PDF 选页 / 整本 / 单页框选</option>
+              <option value="image">普通图片 / 框选局部</option>
+            </select></label>
+            {textSource?<TextSelectionScope source={textSource}/>:null}
+            <p className="muted">引用新选段时，在「我的笔记」打开已保存的文字笔记，选中文字后点击「就选段提问」。</p>
+            {textSource&&onOpenNote?<button type="button" className="text-button" onClick={()=>onOpenNote(textSource.note_id)}>打开原笔记重新选段</button>:null}
+            {material==='pdf'?<PdfPicker choice={pdfChoice} onChange={setPdfChoice} books={books.data||[]} book={book.data} preview={pdfPreview} loading={!!pdfChoice.noteId&&(book.isFetching||!!pdf&&preview.isFetching)} error={pdfError} disabled={create.isPending||busy||send.isPending} onReady={setLoadedPdfImage} loadedImage={loadedPdfImage}/>:null}
+            {material==='image'?<ImagePicker choice={imageChoice} onChange={setImageChoice} books={imageBooks.data||[]} book={imageBook.data} preview={imagePreview.data} loading={!!imageChoice.noteId&&(imageBook.isPending||!!image&&imagePreview.isFetching)} error={imageError} disabled={create.isPending||busy||send.isPending} onReady={setLoadedImage}/>:null}
+          </div>
+        </details>
+        {textSource?<div className="chat-material-status">
+          {!materialOpen?<strong>笔记选段 · {textSource.title} · 版本 {textSource.revision} · {Array.from(textSource.quote).length} 字</strong>:null}
+          <p>本次仅向所选模型发送所选原文和本对话历史。已引用的选段可继续按原版本提问。</p>
+        </div>:null}
+        {!materialOpen&&material==='pdf'?<div className="chat-material-status">
+          <strong>PDF{pdfTitle?' · '+pdfTitle:''}</strong>
+          {pdfPreview?<p role="status">{pdfChoice.mode==='all'?'整本 · ':''}原 PDF 第 {pageRange(pdfPreview.source.pages.map(page=>page.number))} 页 · 将{pdfChoice.mode==='region'?'框选区域':'所选页图'}和文字对话发送给所选模型，计划调用 {pdfPreview.planned_calls} 次。</p>:<p role="status">{pdfError||'展开资料选项核对 PDF 和提问范围。'}</p>}
+        </div>:null}
+        {!materialOpen&&material==='image'?<div className="chat-material-status">
+          <strong>图片{imageTitle?' · '+imageTitle:''}</strong>
+          {imageReady&&imagePage&&imagePreview.data?<p role="status">第 {imagePage.number} 张 · 将{imageChoice.mode==='region'?'框选区域':'整张图片'}和文字对话发送给所选模型，计划调用 {imagePreview.data.planned_calls} 次。</p>:<p role="status">{imageError||'展开资料选项核对图片和提问范围。'}</p>}
+          {imageChoice.sourceRevision!==undefined&&imageBook.data&&imageChoice.sourceRevision!==imageBook.data.revision?<p className="chat-warning" role="status">来源笔记已更新，请展开资料选项核对当前图片和选区。</p>:null}
+        </div>:null}
         {uncertain?<p className="chat-warning" role="alert">原提交结果暂时未知，可能已计费。先重新读取本对话核对；不会自动重发。参数保持相同时，主动再次发送沿用原请求编号；更改参数后属于新请求。</p>:null}
         <div className="chat-controls"><ModelPicker catalog={catalog.data} value={choice} onChange={setChoice} vision={material==='pdf'||material==='image'} tools={!!toolDraft.selection.tools.length} disabled={create.isPending||busy||send.isPending} label="对话模型"/>
-          {busy&&latest?<button type="button" className="secondary" disabled={cancel.isPending} onClick={()=>cancel.mutate(latest.id)}>停止生成</button>:<button className="primary" disabled={create.isPending||!!initialTextSelection||send.isPending||!prompt.trim()||!detail.data||!catalog.data?.platform_enabled||!pdfReady||!imageReady||!textReady||!toolsReady||!capable}>{send.isPending?'正在提交…':'发送'}</button>}</div>
-        <p className="muted chat-hint">每次最多 8000 字，每小时 30 次。刷新或切换页面后可查看原回复；取消会保留已保存的部分内容。AI 回答请自行核对。</p>
+          {busy&&latest?<button type="button" className="secondary" disabled={cancel.isPending} onClick={()=>cancel.mutate(latest.id)}>停止生成</button>:<button className="primary" disabled={create.isPending||!!initialTextSelection||send.isPending||!prompt.trim()||!detail.data||!catalog.data?.platform_enabled||!pdfReady||!imageReady||!textReady||!toolsReady||!capable}><Send size={16} aria-hidden="true"/>{send.isPending?'正在提交…':'发送'}</button>}</div>
+        {!toolsReady?<p className="muted chat-tool-status" role="status">请展开只读工具，预览并确认本次授权范围后发送。</p>:null}
+        <ToolScopePicker owner={owner} contextKey={toolContext} value={toolDraft} onChange={setToolDraft} disabled={create.isPending||busy||send.isPending}/>
+        <div className="chat-composer-footer"><p className="muted chat-hint">每次最多 8000 字 · 每小时 30 次</p><details className="chat-usage-help"><summary>使用说明</summary><p className="muted">刷新或切换页面后可查看原回复；取消会保留已保存的部分内容。AI 回答请自行核对。</p></details></div>
       </form>:null}
     </section>
   </div>

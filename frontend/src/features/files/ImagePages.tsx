@@ -1,4 +1,5 @@
-import { useEffect,useRef,useState } from 'react'
+import { useEffect,useId,useRef,useState,type ReactNode } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { api,ApiError } from '../../api'
 import { createUuid } from '../../uuid'
 import { NoteError } from '../notes/NoteError'
@@ -14,10 +15,15 @@ type Stage='selected'|'starting'|'sending'|'completing'|'done'|'failed'
 type Pick={id:string;file:File;preview:string;requestKey:string;stage:Stage;progress:number;session?:UploadOut;received?:boolean;error?:string;invalid?:boolean}
 const stages:Record<Stage,string>={selected:'待上传',starting:'申请上传',sending:'传输中',completing:'创建页面',done:'上传完成',failed:'上传失败'}
 const statuses:Record<string,string>={uploading:'等待上传',processing:'生成预览中',ready:'可阅读',rejected:'图片校验失败',expired:'上传已过期',failed:'处理失败'}
-type Props={noteId:string;ownerId:string;revision:number;canMutate:boolean;beforeMutation:()=>boolean;onBusyChange:(busy:boolean)=>void;onNoteChanged:(note:Note)=>void}
-export function ImagePages({noteId,ownerId,revision,canMutate,beforeMutation,onBusyChange,onNoteChanged}:Props){
+type Props={noteId:string;ownerId:string;revision:number;pdfImportStatus:ReactNode;canMutate:boolean;beforeMutation:()=>boolean;onBusyChange:(busy:boolean)=>void;onNoteChanged:(note:Note)=>void}
+export function ImagePages({noteId,ownerId,revision,pdfImportStatus,canMutate,beforeMutation,onBusyChange,onNoteChanged}:Props){
   const [picks,setPicks]=useState<Pick[]>([]),[pages,setPages]=useState<PageOut[]>([]),[selected,setSelected]=useState(''),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState<unknown>(null),[notice,setNotice]=useState('')
   const [pollEpoch,setPollEpoch]=useState(0)
+  const [pickerMode,setPickerMode]=useState<'pages'|'order'|null>(null)
+  const pickerId=useId()
+  const pickerButton=useRef<HTMLButtonElement>(null),pickerPanel=useRef<HTMLDivElement>(null)
+  const pickerOpen=pages.length>1&&pickerMode!==null
+  const sorting=pickerOpen&&pickerMode==='order'
   const alive=useRef(false),generation=useRef(0),items=useRef(picks),urls=useRef(new Set<string>()),running=useRef(false),controller=useRef<AbortController|null>(null),callbacks=useRef({beforeMutation,onBusyChange,onNoteChanged})
   const pageRequest=useRef(0)
   callbacks.current={beforeMutation,onBusyChange,onNoteChanged}
@@ -29,6 +35,27 @@ export function ImagePages({noteId,ownerId,revision,canMutate,beforeMutation,onB
     alive.current=true;return()=>{alive.current=false;generation.current++;controller.current?.abort();for(const url of urls.current)URL.revokeObjectURL(url);urls.current.clear();callbacks.current.onBusyChange(false)}
   },[noteId,ownerId])
   useEffect(()=>{const isCurrent=current();let relevant=true;void readPages(()=>isCurrent()&&relevant).then(()=>{if(isCurrent()&&relevant){setError(null);setLoading(false)}}).catch(e=>{if(isCurrent()&&relevant){setError(e);setLoading(false)}});return()=>{relevant=false}},[noteId,revision])
+  useEffect(()=>{
+    if(!pickerOpen)return
+    function closeOutside(event:Event){
+      const target=event.target as Node
+      if(!pickerButton.current?.contains(target)&&!pickerPanel.current?.contains(target))setPickerMode(null)
+    }
+    function closeWithEscape(event:KeyboardEvent){
+      if(event.key!=='Escape')return
+      event.preventDefault()
+      event.stopPropagation()
+      closePicker()
+    }
+    document.addEventListener('pointerdown',closeOutside)
+    document.addEventListener('focusin',closeOutside)
+    document.addEventListener('keydown',closeWithEscape,true)
+    return()=>{
+      document.removeEventListener('pointerdown',closeOutside)
+      document.removeEventListener('focusin',closeOutside)
+      document.removeEventListener('keydown',closeWithEscape,true)
+    }
+  },[pickerOpen])
   // A new page may become pending after an upload without changing the incoming
   // revision immediately. Poll from its status until processing has finished.
   const pending=pages.some(page=>['uploading','processing'].includes(page.file.status))
@@ -55,6 +82,62 @@ export function ImagePages({noteId,ownerId,revision,canMutate,beforeMutation,onB
   }
   async function movePage(index:number,step:number){if(!begin())return;const isCurrent=current();try{const ids=pages.map(p=>p.id);[ids[index],ids[index+step]]=[ids[index+step],ids[index]];await api('/notes/'+noteId+'/pages/order','PATCH',{revision,page_ids:ids});if(!isCurrent())return;callbacks.current.onNoteChanged(await freshNote(isCurrent));await readPages(isCurrent)}catch(e){if(isCurrent()){setError(e instanceof ApiError&&e.status===409?new Error('页面或笔记已更新，请检查最新顺序后再次移动'):e);try{const latest=await freshNote(isCurrent);callbacks.current.onNoteChanged(latest);await readPages(isCurrent)}catch(fetchError){if(isCurrent())setError(fetchError)}}}finally{finish(isCurrent)}}
   async function retryFile(file:FileOut){if(!begin())return;const isCurrent=current();try{await api<FileOut>('/files/'+file.id+'/retry','POST');if(isCurrent())await readPages(isCurrent)}catch(e){if(isCurrent())setError(e)}finally{finish(isCurrent)}}
-  const active=pages.find(page=>page.id===selected),waiting=picks.filter(p=>p.stage!=='done'&&!p.invalid)
-  return <section className="image-pages" aria-label="图片笔记页面"><div className="panel-heading"><h3>图片页面 <span className="muted">{pages.length} 页</span></h3><button className="text-button" disabled={busy||loading} onClick={()=>void refreshPages()}>刷新页面</button></div><p className="muted">选择图片后可预览、移除和调整顺序；每批最多 50 张，单张最多 20 MiB。上传成功的页面会追加到笔记。</p><label className="image-file-label">选择 JPEG / PNG / WebP 图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy||!canMutate} onChange={e=>{choose(e.target.files);e.target.value=''}}/></label>{!canMutate&&!busy?<p className="muted">请先保存笔记信息，再选择图片或调整页序。</p>:null}<NoteError error={error}/>{notice?<p className="muted" role="status">{notice}</p>:null}{picks.length?<><ol className="upload-picks">{picks.map((item,index)=><li key={item.id}><img src={item.preview} alt={item.file.name+' 上传前预览'}/><div className="upload-info"><strong>{item.file.name}</strong><span role="status">{stages[item.stage]}{item.stage==='sending'?' · '+item.progress+'%':''}</span>{item.stage==='sending'?<progress max={100} value={item.progress} aria-label={item.file.name+'上传进度'}/>:null}{item.error?<span className="upload-error">{item.error}</span>:null}{item.invalid?<small>请移除此项并选择符合要求的图片。</small>:null}</div><div className="image-page-actions"><button className="secondary" aria-label={'将'+item.file.name+'提前'} disabled={busy||index===0} onClick={()=>movePick(index,-1)}>上移</button><button className="secondary" aria-label={'将'+item.file.name+'后移'} disabled={busy||index===picks.length-1} onClick={()=>movePick(index,1)}>下移</button>{item.stage==='failed'&&!item.invalid?<button className="secondary" disabled={busy||!canMutate} onClick={()=>void upload([item.id])}>重试</button>:null}<button className="text-button" aria-label={'移除'+item.file.name+'预览'} disabled={busy} onClick={()=>remove(item.id)}>移除</button></div></li>)}</ol><div className="note-actions"><button className="primary" disabled={busy||!canMutate||!waiting.length} onClick={()=>void upload()}>{busy?'正在处理…':'按当前顺序上传 / 重试'}</button><button className="text-button" disabled={busy||!picks.some(p=>p.stage==='done')} onClick={()=>picks.filter(p=>p.stage==='done').forEach(p=>remove(p.id))}>清理已上传预览</button></div></>:null}{loading?<p role="status">读取页面…</p>:null}{!loading&&!pages.length?<div className="empty">尚无图片页面，请选择图片上传。</div>:null}{pages.length?<><ol className="image-page-strip">{pages.map((page,index)=><li key={page.id} className={page.id===selected?'selected':''}><div className="image-page-select">{page.file.status==='ready'?<PrivateImage fileId={page.file.id} kind="thumbnail" alt={'第'+(index+1)+'页缩略图'} onSelect={()=>setSelected(page.id)} selected={page.id===selected}/>:<span className="image-state">{statuses[page.file.status]||page.file.status}</span>}<button className="image-page-open" aria-label={'阅读第'+(index+1)+'页：'+page.file.filename} aria-pressed={page.id===selected} onClick={()=>setSelected(page.id)}><span>第 {index+1} 页</span><small>{page.file.filename}</small></button></div><div className="image-page-actions"><button className="text-button" aria-label={'第'+(index+1)+'页上移'} disabled={busy||!canMutate||index===0} onClick={()=>void movePage(index,-1)}>上移</button><button className="text-button" aria-label={'第'+(index+1)+'页下移'} disabled={busy||!canMutate||index===pages.length-1} onClick={()=>void movePage(index,1)}>下移</button></div></li>)}</ol>{active?.file.status==='ready'?<><ImageReader key={active.file.id} fileId={active.file.id} filename={active.file.filename}/><OcrPanel key={[ownerId,noteId,active.id,active.file.id].join(':')} noteId={noteId} ownerId={ownerId} revision={revision} page={active} canMutate={canMutate&&!busy} beforeMutation={beforeMutation} onBusyChange={onBusyChange}/></>:active?<div className="image-processing" role="status"><strong>{statuses[active.file.status]||active.file.status}</strong>{active.file.error_code?<p className="muted">错误：{active.file.error_code}</p>:null}{active.file.status==='failed'?<button className="secondary" disabled={busy||!canMutate} onClick={()=>void retryFile(active.file)}>重试图片处理</button>:active.file.status==='rejected'?<p className="muted">原图未通过校验，请重新选择有效图片上传。</p>:<p className="muted">处理完成后将显示阅读图片。</p>}</div>:null}</>:null}</section>
+  function closePicker(){setPickerMode(null);pickerButton.current?.focus({preventScroll:true})}
+  function selectPage(id:string){setSelected(id);closePicker()}
+  const selectedIndex=pages.findIndex(page=>page.id===selected)
+  const active=pages[selectedIndex],waiting=picks.filter(p=>p.stage!=='done'&&!p.invalid)
+  return <section className="image-pages" aria-label="图片笔记页面">
+    <div className="panel-heading image-pages-heading">
+      <h3>图片页面 {pages.length===1?<span className="muted">共 1 页</span>:null}</h3>
+      <div className="image-pages-heading-actions">
+        <button type="button" className="text-button" disabled={busy||loading} onClick={()=>void refreshPages()}>刷新页面</button>
+        {pages.length>1?<button type="button" ref={pickerButton} className="secondary image-page-picker-trigger" aria-expanded={pickerOpen} aria-controls={pickerId} onClick={()=>setPickerMode(pickerOpen?null:'pages')}>
+          选页 · {selectedIndex+1} / {pages.length}<ChevronDown size={14} aria-hidden="true"/>
+        </button>:null}
+      </div>
+      {pages.length>1?<div ref={pickerPanel} id={pickerId} className="image-page-picker" role="group" aria-label="选择页面" hidden={!pickerOpen}>
+        <div className="image-page-picker-heading">
+          <strong>选择页面</strong>
+          <button type="button" className="text-button" aria-pressed={sorting} onClick={()=>setPickerMode(sorting?'pages':'order')}>调整页序</button>
+        </div>
+        {sorting?<NoteError error={error}/>:null}
+        <ol className="image-page-strip">
+          {pages.map((page,index)=>{
+            const current=index===selectedIndex
+            return <li key={page.id} className={current?'selected':''}>
+              <div className="image-page-select">
+                {page.file.status==='ready'?<PrivateImage fileId={page.file.id} kind="thumbnail" alt={'第'+(index+1)+'页缩略图'} onSelect={()=>selectPage(page.id)} selected={current}/>:<span className="image-state">{statuses[page.file.status]||page.file.status}</span>}
+                <button type="button" className="image-page-open" aria-label={'阅读第'+(index+1)+'页：'+page.file.filename} aria-pressed={current} onClick={()=>selectPage(page.id)}>
+                  <span>第 {index+1} 页{current?' · 当前':''}</span><small>{page.file.filename}</small>
+                </button>
+              </div>
+              {sorting?<div className="image-page-actions">
+                <button type="button" className="text-button" aria-label={'第'+(index+1)+'页上移'} disabled={busy||!canMutate||index===0} onClick={()=>void movePage(index,-1)}>上移</button>
+                <button type="button" className="text-button" aria-label={'第'+(index+1)+'页下移'} disabled={busy||!canMutate||index===pages.length-1} onClick={()=>void movePage(index,1)}>下移</button>
+              </div>:null}
+            </li>
+          })}
+        </ol>
+      </div>:null}
+    </div>
+    {loading?<p role="status">读取页面…</p>:null}
+    {!loading&&!pages.length?<div className="empty">尚无图片页面，请选择图片上传。</div>:null}
+    {active?.file.status==='ready'?
+      <ImageReader imageFirst key={active.file.id} fileId={active.file.id} filename={active.file.filename}/>:active?
+      <div className="image-processing" role="status">
+        <strong>{statuses[active.file.status]||active.file.status}</strong>
+        {active.file.error_code?<p className="muted">错误：{active.file.error_code}</p>:null}
+        {active.file.status==='failed'?<button className="secondary" disabled={busy||!canMutate} onClick={()=>void retryFile(active.file)}>重试图片处理</button>:active.file.status==='rejected'?<p className="muted">原图未通过校验，请重新选择有效图片上传。</p>:<p className="muted">处理完成后将显示阅读图片。</p>}
+      </div>:null}
+    {active?.file.status==='ready'?<OcrPanel key={[ownerId,noteId,active.id,active.file.id].join(':')} noteId={noteId} ownerId={ownerId} revision={revision} page={active} canMutate={canMutate&&!busy} beforeMutation={beforeMutation} onBusyChange={onBusyChange}/>:null}
+    {pdfImportStatus}
+    <div className="image-upload-tools">
+      <p className="muted">选择图片后可预览、移除和调整顺序；每批最多 50 张，单张最多 20 MiB。上传成功的页面会追加到笔记。</p>
+      <label className="image-file-label">选择 JPEG / PNG / WebP 图片<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy||!canMutate} onChange={e=>{choose(e.target.files);e.target.value=''}}/></label>
+      {!canMutate&&!busy?<p className="muted">请先保存笔记信息，再选择图片或调整页序。</p>:null}
+      {sorting?null:<NoteError error={error}/>}
+      {notice?<p className="muted" role="status">{notice}</p>:null}
+      {picks.length?<><ol className="upload-picks">{picks.map((item,index)=><li key={item.id}><img src={item.preview} alt={item.file.name+' 上传前预览'}/><div className="upload-info"><strong>{item.file.name}</strong><span role="status">{stages[item.stage]}{item.stage==='sending'?' · '+item.progress+'%':''}</span>{item.stage==='sending'?<progress max={100} value={item.progress} aria-label={item.file.name+'上传进度'}/>:null}{item.error?<span className="upload-error">{item.error}</span>:null}{item.invalid?<small>请移除此项并选择符合要求的图片。</small>:null}</div><div className="image-page-actions"><button className="secondary" aria-label={'将'+item.file.name+'提前'} disabled={busy||index===0} onClick={()=>movePick(index,-1)}>上移</button><button className="secondary" aria-label={'将'+item.file.name+'后移'} disabled={busy||index===picks.length-1} onClick={()=>movePick(index,1)}>下移</button>{item.stage==='failed'&&!item.invalid?<button className="secondary" disabled={busy||!canMutate} onClick={()=>void upload([item.id])}>重试</button>:null}<button className="text-button" aria-label={'移除'+item.file.name+'预览'} disabled={busy} onClick={()=>remove(item.id)}>移除</button></div></li>)}</ol><div className="note-actions"><button className="primary" disabled={busy||!canMutate||!waiting.length} onClick={()=>void upload()}>{busy?'正在处理…':'按当前顺序上传 / 重试'}</button><button className="text-button" disabled={busy||!picks.some(p=>p.stage==='done')} onClick={()=>picks.filter(p=>p.stage==='done').forEach(p=>remove(p.id))}>清理已上传预览</button></div></>:null}
+    </div>
+  </section>
 }

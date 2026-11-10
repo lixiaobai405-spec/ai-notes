@@ -5,6 +5,7 @@ import App from './App'
 import OfflineCleanupNotice from './features/offline/OfflineCleanupNotice'
 import './features/offline/vault.ts'
 import './styles.css'
+import './workspace.css'
 import {registerPwa} from './features/pwa/register'
 registerPwa()
 const client = new QueryClient({defaultOptions:{queries:{retry:false,refetchOnWindowFocus:true}}})

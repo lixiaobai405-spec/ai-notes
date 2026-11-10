@@ -20,6 +20,8 @@ export default function ReviewCenter(props:Props){const session=useSyncExternalS
 function Center({owner,sessionId,onOpenNote,onOpenQuiz,initialPlanId,timeZone:explicitTimeZone}:Props&{sessionId:string}){
   const settings=useLearningSettings(owner,sessionId),timeZone=explicitTimeZone||settings.data?.timezone||'Asia/Shanghai'
   const [filters,setFilters]=useState<ReviewFilters>({mode:'due',kind:'',status:'',eligible:false,from:'',to:'',offset:0}),[selected,setSelected]=useState(initialPlanId||''),[snapshot,setSnapshot]=useState<ReviewPlan|null>(null),[formEpoch,setFormEpoch]=useState(0)
+  const detailRef=useRef<HTMLElement>(null),selectedPlanButton=useRef<HTMLButtonElement>(null)
+  const ready=!!(explicitTimeZone||settings.data)
   const selection=useRef(selected);selection.current=selected
   const mutation=useReviewMutation(owner,sessionId,receipt=>{if(receipt.plan?.id===selection.current){setSnapshot(receipt.plan);setFormEpoch(value=>value+1)}})
   let path='',filterError:unknown;try{path=reviewListPath(filters)}catch(e){filterError=e}
@@ -27,14 +29,97 @@ function Center({owner,sessionId,onOpenNote,onOpenQuiz,initialPlanId,timeZone:ex
   const current=useQuery({queryKey:['reviews',owner,sessionId,'plan',selected],queryFn:()=>api<ReviewPlan>('/learning/review-plans/'+selected),enabled:!!selected,retry:false})
   // Freeze the editable version. Background reads must never silently rebase unsaved input.
   useEffect(()=>{if(current.data?.id===selected&&!snapshot)setSnapshot(current.data)},[current.data,selected,snapshot])
+  useEffect(()=>{
+    if(!selected||!ready)return
+    detailRef.current?.focus({preventScroll:true})
+    detailRef.current?.scrollIntoView({block:'start'})
+  },[selected,ready,snapshot?.id])
   const readablePlan=snapshot&&current.data?.id===snapshot.id?{...snapshot,item:{...snapshot.item,eligible:current.data.item.eligible}}:snapshot
   function choose(id:string){setSnapshot(null);setSelected(id);setFormEpoch(value=>value+1)}
   function filter(change:Partial<ReviewFilters>){setFilters(old=>({...old,...change,offset:change.offset??0}));choose('')}
   function reload(){if(current.data){setSnapshot(current.data);setFormEpoch(value=>value+1)}}
-  if(!explicitTimeZone&&!settings.data)return <section className="panel"><h3>统一复习计划</h3><NoteError error={settings.error}/>{settings.isPending?<p>正在读取用户显示时区…</p>:<button type="button" className="secondary" onClick={()=>void settings.refetch()}>重试读取时区</button>}</section>
-  return <div className="review-center card-workspace"><section className="panel"><div className="panel-heading"><div><h3>统一复习计划</h3><p className="muted">笔记、卡片和测验各有独立计划。查询和刷新只读取数据。</p></div><span className="badge">显示时区：{timeZone}</span></div><div className="card-filters"><label>计划范围<select aria-label="计划范围" value={filters.mode} onChange={e=>filter({mode:e.target.value as 'due'|'all'})}><option value="due">当前到期（服务器判定）</option><option value="all">全部计划</option></select></label><label>复习对象类型<select aria-label="复习对象类型" value={filters.kind} onChange={e=>filter({kind:e.target.value})}><option value="">全部类型</option>{Object.entries(reviewKinds).map(([v,n])=><option value={v} key={v}>{n}</option>)}</select></label>{filters.mode==='all'?<><label>计划状态<select aria-label="计划状态" value={filters.status} onChange={e=>filter({status:e.target.value})}><option value="">全部状态</option>{Object.entries(reviewStatuses).map(([v,n])=><option value={v} key={v}>{n}</option>)}</select></label><label className="card-check"><input type="checkbox" checked={filters.eligible} onChange={e=>filter({eligible:e.target.checked})}/>仅可读取的有效对象</label></>:null}<label>到期开始（设备时区：{deviceZone()}）<input type="datetime-local" value={filters.from} onChange={e=>filter({from:e.target.value})}/></label><label>到期结束（设备时区：{deviceZone()}）<input type="datetime-local" value={filters.to} onChange={e=>filter({to:e.target.value})}/></label></div><NoteError error={filterError||plans.error}/>{plans.isPending&&path?<p role="status">正在读取计划…</p>:plans.data&&path?<><div className="review-list">{plans.data.items.map(plan=><button type="button" className={'review-list-item '+(selected===plan.id?'selected':'')} key={plan.id} onClick={()=>choose(plan.id)}><strong>{plan.item.title}</strong><span>{reviewKinds[plan.item.kind]} · {reviewStatuses[plan.status]} · {plan.strategy==='manual'?'手动排期':'FSRS 自动排期'}</span><small>下次：{reviewTime(plan.next_due_at,timeZone)}{!plan.item.eligible?' · 当前对象不可复习':''}</small></button>)}</div>{!plans.data.items.length?<p className="empty">当前筛选没有复习计划。可从笔记加入复习，或确认学习卡片。</p>:null}<div className="card-pagination"><span>共 {plans.data.total} 个计划 · 每页最多 50 个</span><div><button type="button" className="secondary" disabled={!filters.offset||plans.isFetching} onClick={()=>filter({offset:Math.max(0,filters.offset-50)})}>上一页计划</button><button type="button" className="secondary" disabled={filters.offset+50>=plans.data.total||plans.isFetching} onClick={()=>filter({offset:filters.offset+50})}>下一页计划</button></div></div></>:null}</section>
-    <section className="review-feedback" aria-label="复习操作结果">{mutation.feedback}</section>
-    {selected?<section className="panel review-current" aria-label="当前复习计划"><div className="panel-heading"><h3>当前复习计划</h3><button type="button" className="text-button" onClick={()=>choose('')}>关闭计划</button></div><NoteError error={current.error}/>{current.isFetching?<p role="status">正在核对当前计划…</p>:null}{snapshot&&!current.isError?<><h4>{snapshot.item.title}</h4><p>{reviewKinds[snapshot.item.kind]} · {reviewStatuses[snapshot.status]} · {snapshot.strategy==='manual'?'手动排期':'FSRS 自动排期'} · 下次 {reviewTime(snapshot.next_due_at,timeZone)}</p>{!readablePlan?.item.eligible?<p className="error">对象当前不可复习，可能已移入回收站、归档或尚未确认。</p>:null}{current.data&&current.data.revision!==snapshot.revision?<p className="review-uncertain" role="status">当前计划已有较新版本，已保留你的输入和原版本。读取后再选择采用新版本。</p>:null}<div className="card-actions"><button type="button" className="secondary" disabled={current.isFetching} onClick={()=>void current.refetch()}>读取当前计划（保留输入）</button><button type="button" className="secondary" disabled={mutation.blocked||current.isFetching||!current.data} onClick={reload}>采用已读取版本并重置输入</button></div><ReviewObject key={snapshot.item.id} plan={readablePlan||snapshot} owner={owner} sessionId={sessionId} onOpenNote={onOpenNote} onOpenQuiz={onOpenQuiz}/><ReviewPractice key={'rating:'+formEpoch} plan={readablePlan||snapshot} blocked={mutation.blocked||current.isFetching} onSubmit={attempt=>void mutation.send(attempt)}/><ReviewPlanEditor key={'edit:'+formEpoch} plan={readablePlan||snapshot} blocked={mutation.blocked||current.isFetching} onSubmit={attempt=>void mutation.send(attempt)}/><div className="card-actions review-status-actions">{snapshot.status!=='archived'?<><button type="button" className="secondary" disabled={mutation.blocked} onClick={()=>void mutation.send({path:'/learning/review-plans/'+snapshot.id,method:'PATCH',planId:snapshot.id,body:{operation:snapshot.status==='active'?'pause':'resume',revision:snapshot.revision,request_key:createUuid()}})}>{snapshot.status==='active'?'暂停计划':'恢复计划'}</button><button type="button" className="text-button" disabled={mutation.blocked} onClick={()=>{if(window.confirm('归档此计划？历史保留；后续可从原对象重新加入复习。'))void mutation.send({path:'/learning/review-plans/'+snapshot.id,method:'PATCH',planId:snapshot.id,body:{operation:'archive',revision:snapshot.revision,request_key:createUuid()}})}}>归档计划</button></>:null}</div><ReviewHistory key={snapshot.id} owner={owner} sessionId={sessionId} plan={snapshot} timeZone={timeZone}/></>:null}</section>:null}
+  function changePlanStatus(operation:'pause'|'resume'|'archive'){
+    if(!snapshot)return
+    void mutation.send({path:'/learning/review-plans/'+snapshot.id,method:'PATCH',planId:snapshot.id,body:{operation,revision:snapshot.revision,request_key:createUuid()}})
+  }
+  if(!ready)return <section className="panel"><h3>复习计划</h3><NoteError error={settings.error}/>{settings.isPending?<p>正在读取用户显示时区…</p>:<button type="button" className="secondary" onClick={()=>void settings.refetch()}>重试读取时区</button>}</section>
+
+  const activeFilterCount=[filters.kind,filters.from,filters.to,filters.mode==='all'&&filters.status,filters.mode==='all'&&filters.eligible].filter(Boolean).length
+  const versionChanged=snapshot&&current.data&&current.data.revision!==snapshot.revision
+  const readVersion=<button type="button" className="text-button" disabled={current.isFetching} onClick={()=>void current.refetch()}>读取当前计划（保留输入）</button>
+  const adoptVersion=<button type="button" className="secondary" disabled={mutation.blocked||current.isFetching||!current.data} onClick={reload}>采用已读取版本并重置输入</button>
+  const versionActions=<div className="card-actions review-version-actions">
+    {readVersion}{adoptVersion}
+  </div>
+  const feedback=<section className="review-feedback" aria-label="复习操作结果">{mutation.feedback}</section>
+  return <div className="review-center card-workspace">
+    <section className="panel">
+      <div className="panel-heading">
+        <h3>{filters.mode==='due'?'待复习':'复习计划'}</h3>
+        <div className="card-actions" role="group" aria-label="计划范围">
+          <button type="button" className={filters.mode==='due'?'primary':'secondary'} aria-pressed={filters.mode==='due'} onClick={()=>{if(filters.mode!=='due')filter({mode:'due'})}}>当前到期</button>
+          <button type="button" className={filters.mode==='all'?'primary':'secondary'} aria-pressed={filters.mode==='all'} onClick={()=>{if(filters.mode!=='all')filter({mode:'all'})}}>全部计划</button>
+        </div>
+      </div>
+      <details className="review-filters">
+        <summary>筛选{activeFilterCount?`（${activeFilterCount} 项已选）`:''}</summary>
+        <div className="card-filters">
+          <label>复习对象类型<select value={filters.kind} onChange={e=>filter({kind:e.target.value})}><option value="">全部类型</option>{Object.entries(reviewKinds).map(([v,n])=><option value={v} key={v}>{n}</option>)}</select></label>
+          {filters.mode==='all'?<>
+            <label>计划状态<select value={filters.status} onChange={e=>filter({status:e.target.value})}><option value="">全部状态</option>{Object.entries(reviewStatuses).map(([v,n])=><option value={v} key={v}>{n}</option>)}</select></label>
+            <label className="card-check"><input type="checkbox" checked={filters.eligible} onChange={e=>filter({eligible:e.target.checked})}/>仅可读取的有效对象</label>
+          </>:null}
+          <label>到期开始（设备时区：{deviceZone()}）<input type="datetime-local" value={filters.from} onChange={e=>filter({from:e.target.value})}/></label>
+          <label>到期结束（设备时区：{deviceZone()}）<input type="datetime-local" value={filters.to} onChange={e=>filter({to:e.target.value})}/></label>
+        </div>
+      </details>
+      <NoteError error={filterError||plans.error}/>
+      {plans.isPending&&path?<p role="status">正在读取计划…</p>:plans.data&&path?<>
+        {plans.data.items.length?<div className="review-list">{plans.data.items.map(plan=>
+          <button type="button" ref={selected===plan.id?selectedPlanButton:undefined} className={'review-list-item '+(selected===plan.id?'selected':'')} aria-pressed={selected===plan.id} key={plan.id} onClick={()=>choose(plan.id)}>
+            <strong>{plan.item.title}</strong>
+            <span>{reviewKinds[plan.item.kind]} · {reviewStatuses[plan.status]} · {plan.strategy==='manual'?'手动排期':'FSRS 自动排期'}</span>
+            <small>下次：{reviewTime(plan.next_due_at,timeZone)}{!plan.item.eligible?' · 当前对象不可复习':''}</small>
+          </button>
+        )}</div>:<p className="empty">{activeFilterCount?'当前筛选没有复习计划。':filters.mode==='due'?'当前没有到期的复习计划。':'还没有复习计划。可从笔记加入复习，或确认学习卡片。'}</p>}
+        <div className="card-pagination">
+          <span>共 {plans.data.total} 个计划 · {timeZone}</span>
+          {plans.data.total>50||filters.offset>0?<div>
+            <button type="button" className="secondary" disabled={!filters.offset||plans.isFetching} onClick={()=>filter({offset:Math.max(0,filters.offset-50)})}>上一页计划</button>
+            <button type="button" className="secondary" disabled={filters.offset+50>=plans.data.total||plans.isFetching} onClick={()=>filter({offset:filters.offset+50})}>下一页计划</button>
+          </div>:null}
+        </div>
+      </>:null}
+    </section>
+    {selected?<section ref={detailRef} tabIndex={-1} className="panel review-current" aria-label="当前复习计划">
+      <div className="panel-heading"><h3>{snapshot?.item.title||'当前复习计划'}</h3><button type="button" className="text-button" onClick={()=>{selectedPlanButton.current?.focus();choose('')}}>关闭计划</button></div>
+      <NoteError error={current.error}/>
+      {current.isError?readVersion:null}
+      {feedback}
+      {current.isFetching?<p role="status">正在核对当前计划…</p>:null}
+      {snapshot&&!current.isError?<>
+        <p className="muted">{reviewKinds[snapshot.item.kind]} · {reviewStatuses[snapshot.status]} · {snapshot.strategy==='manual'?'手动排期':'FSRS 自动排期'} · 下次 {reviewTime(snapshot.next_due_at,timeZone)}</p>
+        {!readablePlan?.item.eligible?<p className="error">对象当前不可复习，可能已移入回收站、归档或尚未确认。</p>:null}
+        {versionChanged?<div className="review-uncertain"><p role="status">当前计划已有较新版本，已保留你的输入和原版本。读取后再选择采用新版本。</p>{versionActions}</div>:null}
+        <ReviewObject key={snapshot.item.id} plan={readablePlan||snapshot} owner={owner} sessionId={sessionId} onOpenNote={onOpenNote} onOpenQuiz={onOpenQuiz}/>
+        <ReviewPractice key={'rating:'+formEpoch} plan={readablePlan||snapshot} blocked={mutation.blocked||current.isFetching} onSubmit={attempt=>void mutation.send(attempt)}/>
+        {snapshot.status==='paused'?<div className="review-status-actions"><button type="button" className="secondary" disabled={mutation.blocked} onClick={()=>changePlanStatus('resume')}>恢复计划</button></div>:null}
+        {!versionChanged?<div className="review-version-actions">{readVersion}</div>:null}
+        <ReviewPlanEditor key={'edit:'+formEpoch} plan={readablePlan||snapshot} blocked={mutation.blocked||current.isFetching} onSubmit={attempt=>void mutation.send(attempt)}/>
+        {!versionChanged||snapshot.status!=='archived'?<details className="review-disclosure" key={'management:'+snapshot.id}>
+          <summary>版本与计划状态</summary>
+          {!versionChanged?<div className="review-version-actions">{adoptVersion}</div>:null}
+          {snapshot.status!=='archived'?<div className="card-actions review-status-actions">
+            {snapshot.status==='active'?<button type="button" className="secondary" disabled={mutation.blocked} onClick={()=>changePlanStatus('pause')}>暂停计划</button>:null}
+            <button type="button" className="text-button" disabled={mutation.blocked} onClick={()=>{if(window.confirm('归档此计划？历史保留；后续可从原对象重新加入复习。'))changePlanStatus('archive')}}>归档计划</button>
+          </div>:null}
+        </details>:null}
+        <details className="review-disclosure" key={'history:'+snapshot.id}>
+          <summary>复习与策略变更历史</summary>
+          <ReviewHistory owner={owner} sessionId={sessionId} plan={snapshot} timeZone={timeZone}/>
+        </details>
+      </>:null}
+    </section>:feedback}
   </div>
 }
 function ReviewObject({plan,owner,sessionId,onOpenNote,onOpenQuiz}:{plan:ReviewPlan;owner:string;sessionId:string;onOpenNote:(id:string)=>void;onOpenQuiz?:Props['onOpenQuiz']}){

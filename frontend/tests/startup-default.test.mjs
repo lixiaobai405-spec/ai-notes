@@ -35,7 +35,7 @@ function mount({storage,owner='alice',scope='login-one',id='document-one',initia
  vm.runInNewContext(appCode,{exports,require:requireMock,console,window:{sessionStorage:storage}},{filename:'App.formal.js'})
  const render=()=>{index=0;tree=exports.default();const list=effects;effects=[];list.forEach(f=>f());return tree}
  function elements(node,out=[]){if(Array.isArray(node))node.forEach(n=>elements(n,out));else if(node&&typeof node==='object'){out.push(node);elements(node.props?.children,out)}return out}
- return {render,route:()=>text(elements(tree).find(n=>n.type==='header')),click:label=>elements(tree).find(n=>n.type==='button'&&text(n)===label).props.onClick(),preferences:value=>preferences=value,remembered:()=>remembered}
+ return {render,route:()=>text(elements(tree).find(n=>n.type==='h1')),click:label=>elements(tree).find(n=>n.type==='button'&&text(n)===label).props.onClick(),preferences:value=>preferences=value,remembered:()=>remembered}
 }
 test('actual App applies fresh login default once, then reload with a new document ID does not jump to default again',()=>{
  const storage=memoryStorage(),first=mount({storage});first.render();first.render();assert.match(first.route(),/学习卡片/)
@@ -61,7 +61,7 @@ test('actual App opens notes while homepage preferences are unavailable',()=>{
 test('actual App settings do not replace the last notes or chat restoration point',()=>{
  for(const restored of ['notes','chat']){
   const storage=memoryStorage(),app=mount({storage,restored});app.render();app.render()
-  app.click('设置');app.render();assert.match(app.route(),/个人资料与隐私/)
+  app.click('设置');app.render();assert.match(app.route(),/设置/)
   assert.equal(app.remembered(),restored)
   const reload=mount({storage,id:'after-settings',restored:app.remembered()});reload.render();reload.render()
   assert.match(reload.route(),restored==='notes'?/我的笔记/:/AI 对话/)
